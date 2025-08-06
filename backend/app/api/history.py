@@ -1,0 +1,253 @@
+from fastapi import APIRouter, HTTPException, Depends, status, Query
+from pydantic import BaseModel
+from typing import Optional, List
+import logging
+from datetime import datetime, timedelta
+
+from app.api.auth import get_current_user
+from app.models.user import UserResponse
+from app.models.history import HistoryResponse
+from app.core.database import get_collection
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+class HistoryItem(BaseModel):
+    id: str
+    feature_type: str
+    input_data: dict
+    output_data: dict
+    processing_time: Optional[float]
+    status: str
+    created_at: datetime
+
+class HistorySummary(BaseModel):
+    total_items: int
+    feature_breakdown: dict
+    recent_activity: List[HistoryItem]
+    processing_stats: dict
+
+@router.get("/", response_model=List[HistoryItem])
+async def get_user_history(
+    feature_type: Optional[str] = Query(None, description="Filter by feature type"),
+    limit: int = Query(50, ge=1, le=100, description="Number of items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get user's processing history with optional filtering."""
+    try:
+        history_collection = get_collection("history")
+        
+        # Build query
+        query = {"user_id": str(current_user.id)}
+        if feature_type:
+            query["feature_type"] = feature_type
+        
+        # Get history items
+        cursor = history_collection.find(query).sort("created_at", -1).skip(offset).limit(limit)
+        history_items = await cursor.to_list(length=limit)
+        
+        # Convert to response format
+        items = []
+        for item in history_items:
+            items.append(HistoryItem(
+                id=str(item["_id"]),
+                feature_type=item["feature_type"],
+                input_data=item["input_data"],
+                output_data=item["output_data"],
+                processing_time=item.get("processing_time"),
+                status=item["status"],
+                created_at=item["created_at"]
+            ))
+        
+        return items
+        
+    except Exception as e:
+        logger.error(f"Error getting user history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve history"
+        )
+
+@router.get("/summary", response_model=HistorySummary)
+async def get_history_summary(
+    days: int = Query(30, ge=1, le=365, description="Number of days to include"),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get summary of user's processing history."""
+    try:
+        history_collection = get_collection("history")
+        
+        # Calculate date range
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+        
+        # Get history items in date range
+        query = {
+            "user_id": str(current_user.id),
+            "created_at": {"$gte": start_date, "$lte": end_date}
+        }
+        
+        history_items = await history_collection.find(query).sort("created_at", -1).to_list(length=None)
+        
+        # Calculate feature breakdown
+        feature_breakdown = {}
+        total_processing_time = 0
+        successful_items = 0
+        
+        for item in history_items:
+            feature_type = item["feature_type"]
+            feature_breakdown[feature_type] = feature_breakdown.get(feature_type, 0) + 1
+            
+            if item.get("processing_time"):
+                total_processing_time += item["processing_time"]
+            
+            if item["status"] == "completed":
+                successful_items += 1
+        
+        # Get recent activity (last 10 items)
+        recent_items = []
+        for item in history_items[:10]:
+            recent_items.append(HistoryItem(
+                id=str(item["_id"]),
+                feature_type=item["feature_type"],
+                input_data=item["input_data"],
+                output_data=item["output_data"],
+                processing_time=item.get("processing_time"),
+                status=item["status"],
+                created_at=item["created_at"]
+            ))
+        
+        # Calculate processing stats
+        total_items = len(history_items)
+        avg_processing_time = total_processing_time / total_items if total_items > 0 else 0
+        success_rate = (successful_items / total_items * 100) if total_items > 0 else 0
+        
+        return HistorySummary(
+            total_items=total_items,
+            feature_breakdown=feature_breakdown,
+            recent_activity=recent_items,
+            processing_stats={
+                "average_processing_time": round(avg_processing_time, 2),
+                "success_rate": round(success_rate, 1),
+                "total_processing_time": round(total_processing_time, 2)
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting history summary: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve history summary"
+        )
+
+@router.get("/feature/{feature_type}")
+async def get_feature_history(
+    feature_type: str,
+    limit: int = Query(20, ge=1, le=50, description="Number of items to return"),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get history for a specific feature type."""
+    try:
+        history_collection = get_collection("history")
+        
+        # Get history items for specific feature
+        query = {
+            "user_id": str(current_user.id),
+            "feature_type": feature_type
+        }
+        
+        cursor = history_collection.find(query).sort("created_at", -1).limit(limit)
+        history_items = await cursor.to_list(length=limit)
+        
+        # Convert to response format
+        items = []
+        for item in history_items:
+            items.append(HistoryItem(
+                id=str(item["_id"]),
+                feature_type=item["feature_type"],
+                input_data=item["input_data"],
+                output_data=item["output_data"],
+                processing_time=item.get("processing_time"),
+                status=item["status"],
+                created_at=item["created_at"]
+            ))
+        
+        return {
+            "feature_type": feature_type,
+            "total_items": len(items),
+            "items": items
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting feature history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve feature history"
+        )
+
+@router.delete("/{history_id}")
+async def delete_history_item(
+    history_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Delete a specific history item."""
+    try:
+        from bson import ObjectId
+        
+        history_collection = get_collection("history")
+        
+        # Verify the item belongs to the user
+        item = await history_collection.find_one({
+            "_id": ObjectId(history_id),
+            "user_id": str(current_user.id)
+        })
+        
+        if not item:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="History item not found"
+            )
+        
+        # Delete the item
+        await history_collection.delete_one({"_id": ObjectId(history_id)})
+        
+        return {"message": "History item deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting history item: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete history item"
+        )
+
+@router.delete("/")
+async def clear_history(
+    feature_type: Optional[str] = Query(None, description="Clear only specific feature type"),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Clear user's history (all or by feature type)."""
+    try:
+        history_collection = get_collection("history")
+        
+        # Build query
+        query = {"user_id": str(current_user.id)}
+        if feature_type:
+            query["feature_type"] = feature_type
+        
+        # Delete items
+        result = await history_collection.delete_many(query)
+        
+        return {
+            "message": f"Cleared {result.deleted_count} history items",
+            "deleted_count": result.deleted_count
+        }
+        
+    except Exception as e:
+        logger.error(f"Error clearing history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to clear history"
+        ) 
