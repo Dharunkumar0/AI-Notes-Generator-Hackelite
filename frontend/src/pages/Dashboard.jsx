@@ -19,6 +19,7 @@ const Dashboard = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const features = [
     {
@@ -74,24 +75,48 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        setLoading(true);
+        setError(null);
         const data = await historyService.getSummary(30);
+        console.log('Dashboard stats:', data); // Debug log
         setStats(data);
       } catch (error) {
         console.error('Failed to fetch dashboard stats:', error);
+        setError(error.message);
+        // Set default stats when there's an error
+        setStats({
+          total_items: 0,
+          processing_stats: {
+            success_rate: 0,
+            average_processing_time: 0,
+            total_processing_time: 0
+          },
+          feature_breakdown: {}
+        });
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStats();
-  }, []);
+    if (user) {
+      fetchStats();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
+
+  // Calculate statistics with fallbacks
+  const totalActivities = stats?.total_items || 0;
+  const successRate = stats?.processing_stats?.success_rate || 0;
+  const avgProcessing = stats?.processing_stats?.average_processing_time || 0;
+  const totalTimeSaved = stats?.processing_stats?.total_processing_time || 0;
 
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
       <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl p-6 text-white">
         <h1 className="text-2xl font-bold">
-          Welcome back, {user?.displayName || user?.email}!
+          Welcome back, {user?.display_name || user?.email || 'User'}!
         </h1>
         <p className="mt-2 text-primary-100">
           Ready to transform your study materials with AI? Choose a tool below to get started.
@@ -108,7 +133,7 @@ const Dashboard = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Activities</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {stats?.totalItems || 0}
+                {loading ? '...' : totalActivities}
               </p>
             </div>
           </div>
@@ -122,7 +147,7 @@ const Dashboard = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Success Rate</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {stats?.processingStats?.success_rate || 0}%
+                {loading ? '...' : `${successRate}%`}
               </p>
             </div>
           </div>
@@ -136,7 +161,7 @@ const Dashboard = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Avg. Processing</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {stats?.processingStats?.average_processing_time || 0}s
+                {loading ? '...' : `${avgProcessing.toFixed(1)}s`}
               </p>
             </div>
           </div>
@@ -150,7 +175,7 @@ const Dashboard = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Time Saved</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {stats?.processingStats?.total_processing_time ? Math.round(stats.processingStats.total_processing_time / 60) : 0}m
+                {loading ? '...' : `${Math.round(totalTimeSaved / 60)}m`}
               </p>
             </div>
           </div>
@@ -195,9 +220,14 @@ const Dashboard = () => {
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Recent Activity</h2>
         {loading ? (
           <p className="text-gray-500 dark:text-gray-400">Loading activity...</p>
-        ) : stats?.featureBreakdown && Object.keys(stats.featureBreakdown).length > 0 ? (
+        ) : error ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 dark:text-gray-400 mb-4">Unable to load activity data</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">Try using some features to generate activity data</p>
+          </div>
+        ) : stats?.feature_breakdown && Object.keys(stats.feature_breakdown).length > 0 ? (
           <div className="space-y-4">
-            {Object.entries(stats.featureBreakdown).slice(0, 5).map(([feature, count]) => (
+            {Object.entries(stats.feature_breakdown).slice(0, 5).map(([feature, count]) => (
               <div key={feature} className="flex items-center justify-between py-2">
                 <div className="flex items-center">
                   <div className="w-2 h-2 bg-primary-500 rounded-full mr-3"></div>
@@ -213,7 +243,16 @@ const Dashboard = () => {
             </div>
           </div>
         ) : (
-          <p className="text-gray-500 dark:text-gray-400">No activity recorded yet. Try using some features to get started!</p>
+          <div className="text-center py-8">
+            <p className="text-gray-500 dark:text-gray-400 mb-4">No activity recorded yet</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">Try using some features to get started!</p>
+            <div className="mt-4">
+              <Link to="/eli5" className="btn-primary inline-flex items-center">
+                <Lightbulb className="h-4 w-4 mr-2" />
+                Try ELI5
+              </Link>
+            </div>
+          </div>
         )}
       </div>
     </div>

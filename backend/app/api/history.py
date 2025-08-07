@@ -48,15 +48,15 @@ async def get_user_history(
     """Get user's processing history with optional filtering."""
     try:
         history_collection = get_collection("history")
-        logger.info(f"Fetching history for user: {current_user.id}, feature_type: {feature_type}, limit: {limit}, offset: {offset}")
+        logger.info(f"Fetching history for user: {current_user.firebase_uid}, feature_type: {feature_type}, limit: {limit}, offset: {offset}")
         # Build query
-        query = {"user_id": str(current_user.id)}
+        query = {"user_id": current_user.firebase_uid}
         if feature_type:
             query["feature_type"] = feature_type
         # Get history items
         cursor = history_collection.find(query).sort("created_at", -1).skip(offset).limit(limit)
         history_items = await cursor.to_list(length=limit)
-        logger.info(f"Found {len(history_items)} history items for user {current_user.id}")
+        logger.info(f"Found {len(history_items)} history items for user {current_user.firebase_uid}")
         # Convert to response format
         items = []
         for item in history_items:
@@ -91,18 +91,20 @@ async def get_history_summary(
     """Get summary of user's processing history."""
     try:
         history_collection = get_collection("history")
+        logger.info(f"Getting history summary for user: {current_user.firebase_uid}, days: {days}")
         
         # Calculate date range
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=days)
         
-        # Get history items in date range
+        # Get history items in date range - use firebase_uid instead of id
         query = {
-            "user_id": str(current_user.id),
+            "user_id": current_user.firebase_uid,
             "created_at": {"$gte": start_date, "$lte": end_date}
         }
         
         history_items = await history_collection.find(query).sort("created_at", -1).to_list(length=None)
+        logger.info(f"Found {len(history_items)} history items for user {current_user.firebase_uid}")
         
         # Calculate feature breakdown
         feature_breakdown = {}
@@ -143,6 +145,8 @@ async def get_history_summary(
         avg_processing_time = total_processing_time / total_items if total_items > 0 else 0
         success_rate = (successful_items / total_items * 100) if total_items > 0 else 0
         
+        logger.info(f"Summary stats - total_items: {total_items}, success_rate: {success_rate}, avg_time: {avg_processing_time}")
+        
         return HistorySummary(
             total_items=total_items,
             feature_breakdown=feature_breakdown,
@@ -155,7 +159,7 @@ async def get_history_summary(
         )
         
     except Exception as e:
-        logger.error(f"Error getting history summary: {e}")
+        logger.error(f"Error getting history summary: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve history summary"
@@ -222,6 +226,157 @@ async def seed_test_history(request: Request):
         }
         result = await history_collection.insert_one(test_item)
         return {"message": "Seeded test history item", "id": str(result.inserted_id)}
+    except Exception as e:
+        return {"error": str(e)}
+
+@router.post("/seed-dashboard-test", tags=["Debug"], include_in_schema=False)
+async def seed_dashboard_test_data(request: Request):
+    """Seed comprehensive test data for dashboard statistics testing."""
+    try:
+        history_collection = get_collection("history")
+        
+        # Create test data for different features
+        test_data = [
+            {
+                "user_id": "test-user-id",
+                "feature_type": "eli5",
+                "input_data": {"topic": "Machine Learning", "complexity_level": "easy"},
+                "output_data": {"original_topic": "Machine Learning", "key_concepts_count": 3, "examples_count": 2, "analogies_count": 2},
+                "processing_time": 2.5,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=1)
+            },
+            {
+                "user_id": "test-user-id",
+                "feature_type": "notes",
+                "input_data": {"text": "Sample text for summarization", "max_length": 200},
+                "output_data": {"summary": "Summarized text", "key_points": ["point1", "point2"], "word_count": 50},
+                "processing_time": 1.8,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=2)
+            },
+            {
+                "user_id": "test-user-id",
+                "feature_type": "quiz",
+                "input_data": {"text": "Sample quiz content", "num_questions": 5},
+                "output_data": {"total_questions": 5, "questions_count": 5},
+                "processing_time": 3.2,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=3)
+            },
+            {
+                "user_id": "test-user-id",
+                "feature_type": "pdf",
+                "input_data": {"filename": "test.pdf", "file_size": 1024000, "total_pages": 5},
+                "output_data": {"word_count": 1500, "extraction_method": "pymupdf"},
+                "processing_time": 4.1,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=4)
+            },
+            {
+                "user_id": "test-user-id",
+                "feature_type": "voice",
+                "input_data": {"filename": "audio.mp3", "file_size": 512000, "file_format": "mp3"},
+                "output_data": {"transcription": "Sample transcription", "confidence": 0.95, "word_count": 25},
+                "processing_time": 2.8,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=5)
+            },
+            {
+                "user_id": "test-user-id",
+                "feature_type": "mindmap",
+                "input_data": {"topic": "Artificial Intelligence", "complexity": "intermediate"},
+                "output_data": {"topic": "AI", "branches_count": 4, "subtopics_count": 12},
+                "processing_time": 3.5,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=6)
+            }
+        ]
+        
+        # Insert all test data
+        result = await history_collection.insert_many(test_data)
+        
+        return {
+            "message": f"Seeded {len(test_data)} dashboard test items", 
+            "inserted_count": len(result.inserted_ids)
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+class SeedUserDataRequest(BaseModel):
+    user_id: str
+
+@router.post("/seed-user-data", tags=["Debug"], include_in_schema=False)
+async def seed_user_data(request: SeedUserDataRequest):
+    """Seed test data for a specific user ID."""
+    try:
+        history_collection = get_collection("history")
+        
+        # Create test data for the specified user
+        test_data = [
+            {
+                "user_id": request.user_id,
+                "feature_type": "eli5",
+                "input_data": {"topic": "Machine Learning", "complexity_level": "easy"},
+                "output_data": {"original_topic": "Machine Learning", "key_concepts_count": 3, "examples_count": 2, "analogies_count": 2},
+                "processing_time": 2.5,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=1)
+            },
+            {
+                "user_id": request.user_id,
+                "feature_type": "notes",
+                "input_data": {"text": "Sample text for summarization", "max_length": 200},
+                "output_data": {"summary": "Summarized text", "key_points": ["point1", "point2"], "word_count": 50},
+                "processing_time": 1.8,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=2)
+            },
+            {
+                "user_id": request.user_id,
+                "feature_type": "quiz",
+                "input_data": {"text": "Sample quiz content", "num_questions": 5},
+                "output_data": {"total_questions": 5, "questions_count": 5},
+                "processing_time": 3.2,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=3)
+            },
+            {
+                "user_id": request.user_id,
+                "feature_type": "pdf",
+                "input_data": {"filename": "test.pdf", "file_size": 1024000, "total_pages": 5},
+                "output_data": {"word_count": 1500, "extraction_method": "pymupdf"},
+                "processing_time": 4.1,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=4)
+            },
+            {
+                "user_id": request.user_id,
+                "feature_type": "voice",
+                "input_data": {"filename": "audio.mp3", "file_size": 512000, "file_format": "mp3"},
+                "output_data": {"transcription": "Sample transcription", "confidence": 0.95, "word_count": 25},
+                "processing_time": 2.8,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=5)
+            },
+            {
+                "user_id": request.user_id,
+                "feature_type": "mindmap",
+                "input_data": {"topic": "Artificial Intelligence", "complexity": "intermediate"},
+                "output_data": {"topic": "AI", "branches_count": 4, "subtopics_count": 12},
+                "processing_time": 3.5,
+                "status": "completed",
+                "created_at": datetime.utcnow() - timedelta(hours=6)
+            }
+        ]
+        
+        # Insert all test data
+        result = await history_collection.insert_many(test_data)
+        
+        return {
+            "message": f"Seeded {len(test_data)} items for user {request.user_id}", 
+            "inserted_count": len(result.inserted_ids)
+        }
     except Exception as e:
         return {"error": str(e)}
 
