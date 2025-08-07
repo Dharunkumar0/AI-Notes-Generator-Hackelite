@@ -79,6 +79,23 @@ async def transcribe_audio_file(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No file provided"
             )
+            
+        # Check file size before reading
+        MAX_SIZE = 10 * 1024 * 1024  # 10MB
+        file_size = 0
+        chunk_size = 8192
+        
+        # Read file in chunks to check size
+        while chunk := await file.read(chunk_size):
+            file_size += len(chunk)
+            if file_size > MAX_SIZE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="File size exceeds 10MB limit"
+                )
+            
+        # Reset file position for later reading
+        await file.seek(0)
         
         # Get file extension
         file_extension = file.filename.split('.')[-1].lower()

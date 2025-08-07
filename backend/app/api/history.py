@@ -12,20 +12,31 @@ from app.core.database import get_collection
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+from bson import ObjectId
+
 class HistoryItem(BaseModel):
     id: str
+    user_id: str
     feature_type: str
     input_data: dict
     output_data: dict
     processing_time: Optional[float]
-    status: str
+    status: str = "completed"
     created_at: datetime
+
+    class Config:
+        json_encoders = {ObjectId: str}
+        allow_population_by_field_name = True
 
 class HistorySummary(BaseModel):
     total_items: int
     feature_breakdown: dict
     recent_activity: List[HistoryItem]
     processing_stats: dict
+
+    class Config:
+        json_encoders = {ObjectId: str}
+        allow_population_by_field_name = True
 
 @router.get("/", response_model=List[HistoryItem])
 async def get_user_history(
@@ -50,15 +61,21 @@ async def get_user_history(
         # Convert to response format
         items = []
         for item in history_items:
-            items.append(HistoryItem(
-                id=str(item["_id"]),
-                feature_type=item["feature_type"],
-                input_data=item["input_data"],
-                output_data=item["output_data"],
-                processing_time=item.get("processing_time"),
-                status=item["status"],
-                created_at=item["created_at"]
-            ))
+            try:
+                history_item = HistoryItem(
+                    id=str(item["_id"]),
+                    user_id=item["user_id"],
+                    feature_type=item["feature_type"],
+                    input_data=item["input_data"],
+                    output_data=item["output_data"],
+                    processing_time=item.get("processing_time"),
+                    status=item.get("status", "completed"),
+                    created_at=item["created_at"]
+                )
+                items.append(history_item)
+            except Exception as e:
+                logger.error(f"Error converting history item: {e}, item: {item}")
+                continue
         
         return items
         
@@ -108,15 +125,21 @@ async def get_history_summary(
         # Get recent activity (last 10 items)
         recent_items = []
         for item in history_items[:10]:
-            recent_items.append(HistoryItem(
-                id=str(item["_id"]),
-                feature_type=item["feature_type"],
-                input_data=item["input_data"],
-                output_data=item["output_data"],
-                processing_time=item.get("processing_time"),
-                status=item["status"],
-                created_at=item["created_at"]
-            ))
+            try:
+                history_item = HistoryItem(
+                    id=str(item["_id"]),
+                    user_id=item["user_id"],
+                    feature_type=item["feature_type"],
+                    input_data=item["input_data"],
+                    output_data=item["output_data"],
+                    processing_time=item.get("processing_time"),
+                    status=item.get("status", "completed"),
+                    created_at=item["created_at"]
+                )
+                recent_items.append(history_item)
+            except Exception as e:
+                logger.error(f"Error converting recent history item: {e}, item: {item}")
+                continue
         
         # Calculate processing stats
         total_items = len(history_items)

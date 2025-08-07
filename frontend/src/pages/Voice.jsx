@@ -1,17 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Upload, Play, StopCircle, Loader } from 'lucide-react';
+import { Mic, Upload, Play, StopCircle, Loader, FileText } from 'lucide-react';
 import { voiceService } from '../services/voiceService';
+import { notesService } from '../services/notesService';
 
 const Voice = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcription, setTranscription] = useState('');
+  const [confidence, setConfidence] = useState(null);
+  const [duration, setDuration] = useState(null);
+  const [word_count, setWordCount] = useState(null);
+  const [timestamps, setTimestamps] = useState([]);
   const [error, setError] = useState('');
+  const [summary, setSummary] = useState('');
+  const [isSummarizing, setIsSummarizing] = useState(false);
   const [supportedFormats, setSupportedFormats] = useState([]);
   const fileInputRef = useRef();
 
   useEffect(() => {
-    // Get supported formats when component mounts
+    // Fetch supported formats when component mounts
     const getFormats = async () => {
       try {
         const { data } = await voiceService.getSupportedFormats();
@@ -27,15 +34,60 @@ const Voice = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setIsProcessing(true);
+    setError('');
+    setTranscription('');
+    setConfidence(null);
+    setDuration(null);
+    setWordCount(null);
+    setTimestamps([]);
+    setSummary('');
+
     try {
-      setIsProcessing(true);
-      setError('');
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error('File size exceeds 10MB limit. Please select a smaller file.');
+      }
+
       const result = await voiceService.transcribeAudioFile(file);
-      setTranscription(result.transcription);
+
+      if (result.transcription) {
+        setTranscription(result.transcription);
+        setConfidence(result.confidence || null);
+        setDuration(result.duration || null);
+        setWordCount(result.word_count || null);
+        setTimestamps(result.timestamps || []);
+      } else {
+        throw new Error('No transcription received from server');
+      }
+
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to transcribe audio file');
+      const errorMessage = err.message || err.response?.data?.detail || 'Failed to transcribe audio file';
+      setError(errorMessage);
+      console.error('Upload error:', err);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleSummarize = async () => {
+    if (!transcription) return;
+    
+    try {
+      setIsSummarizing(true);
+      setError('');
+      setSummary('');
+      const result = await notesService.summarize(transcription);
+      if (result.summary) {
+        setSummary(result.summary);
+      } else {
+        throw new Error('No summary received');
+      }
+    } catch (err) {
+      const errorMessage = err.message || err.response?.data?.detail || 'Failed to generate summary';
+      setError(errorMessage);
+      console.error('Summary error:', err);
+    } finally {
+      setIsSummarizing(false);
     }
   };
 
@@ -45,10 +97,16 @@ const Voice = () => {
       try {
         setIsProcessing(true);
         setError('');
-        const result = await voiceService.transcribeMicrophone(10); // 10 seconds recording
-        setTranscription(result.transcription);
+        const result = await voiceService.transcribeMicrophone(10); // 10-second recording
+        if (result.transcription) {
+          setTranscription(result.transcription);
+        } else {
+          throw new Error('No transcription received from microphone');
+        }
       } catch (err) {
-        setError(err.response?.data?.detail || 'Failed to transcribe voice');
+        const errorMessage = err.message || err.response?.data?.detail || 'Failed to transcribe voice';
+        setError(errorMessage);
+        console.error('Microphone error:', err);
       } finally {
         setIsProcessing(false);
       }
@@ -56,6 +114,10 @@ const Voice = () => {
       setIsRecording(true);
       setTranscription('');
       setError('');
+      setConfidence(null);
+      setDuration(null);
+      setWordCount(null);
+      setTimestamps([]);
     }
   };
 
@@ -78,7 +140,7 @@ const Voice = () => {
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             Upload audio files ({supportedFormats.join(', ')}) or record directly to convert speech to text
           </p>
-          
+
           <div className="flex justify-center space-x-4">
             <input
               type="file"
@@ -129,9 +191,70 @@ const Voice = () => {
 
           {transcription && (
             <div className="mt-6">
-              <h3 className="text-lg font-semibold mb-2">Transcription</h3>
-              <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-left">
-                {transcription}
+              <h3 className="text-lg font-semibold mb-2">Transcription Results</h3>
+              <div className="space-y-4">
+                <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-left">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-medium">Text</h4>
+                    <button
+                      onClick={handleSummarize}
+                      disabled={isSummarizing}
+                      className="btn-secondary flex items-center text-sm"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      {isSummarizing ? 'Generating...' : 'Generate Summary'}
+                    </button>
+                  </div>
+                  {transcription}
+                </div>
+
+                {summary && (
+                  <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-left">
+                    <h4 className="font-medium mb-2">Summary</h4>
+                    {summary}
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                    <h4 className="font-medium mb-1">Confidence</h4>
+                    <p>{(confidence * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                    <h4 className="font-medium mb-1">Duration</h4>
+                    <p>{duration?.toFixed(2)}s</p>
+                  </div>
+                  <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                    <h4 className="font-medium mb-1">Word Count</h4>
+                    <p>{word_count} words</p>
+                  </div>
+                </div>
+
+                {timestamps && timestamps.length > 0 && (
+                  <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg">
+                    <h4 className="font-medium mb-2">Word Timestamps</h4>
+                    <div className="max-h-40 overflow-y-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="text-left">
+                            <th className="pb-2">Word</th>
+                            <th className="pb-2">Start</th>
+                            <th className="pb-2">End</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {timestamps.map((item, index) => (
+                            <tr key={index} className="border-t border-gray-200 dark:border-gray-700">
+                              <td className="py-2">{item.word}</td>
+                              <td className="py-2">{item.start_time.toFixed(2)}s</td>
+                              <td className="py-2">{item.end_time.toFixed(2)}s</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -141,4 +264,4 @@ const Voice = () => {
   );
 };
 
-export default Voice; 
+export default Voice;

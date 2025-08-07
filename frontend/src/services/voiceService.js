@@ -43,8 +43,8 @@ export const voiceService = {
         },
       });
       
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to transcribe audio file');
+      if (!response.data || !response.data.transcription) {
+        throw new Error(response.data?.error || 'Failed to transcribe audio file');
       }
       return response.data;
     } catch (error) {
@@ -62,10 +62,11 @@ export const voiceService = {
   transcribeMicrophone: async (duration = 10) => {
     try {
       const response = await api.post('/api/voice/microphone', { duration });
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to transcribe from microphone');
-      }
-      return response.data;
+      if (!response.data || !response.data.transcription) {
+      throw new Error('Transcription not received');
+    }
+    return response.data;
+
     } catch (error) {
       console.error('Transcribe microphone error:', error);
       if (error.response?.data?.error) {
