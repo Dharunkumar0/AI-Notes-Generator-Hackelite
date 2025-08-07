@@ -1,292 +1,236 @@
 # AI-Powered Notes Summarizer - Setup Guide
 
-This guide will help you set up the complete AI-Powered Notes Summarizer project with both frontend and backend components.
+## Overview
+This application provides AI-powered tools for processing and summarizing various types of content including text notes, voice recordings, PDF documents, images, and more.
+
+## Features
+- **Notes Summarizer**: AI-powered text summarization
+- **Voice to Text**: Speech recognition and transcription
+- **PDF Processor**: Extract and process text from PDFs
+- **Image OCR**: Extract text from images and generate summaries
+- **Quiz Generator**: Create quizzes from study materials
+- **Mind Map Creator**: Generate visual mind maps
+- **ELI5 Simplifier**: Simplify complex topics
+- **History**: Track all processing activities
+- **User Authentication**: Firebase-based authentication
 
 ## Prerequisites
 
-Before starting, ensure you have the following installed:
+### System Requirements
+- Python 3.8+
+- Node.js 16+
+- MongoDB
+- Tesseract OCR (for image processing)
 
-- **Node.js 18+** and npm
-- **Python 3.9+** and pip
-- **MongoDB** (local installation or MongoDB Atlas account)
-- **Google Cloud Project** with Gemini API enabled
-- **Firebase Project** for authentication
+### API Keys Required
+- Firebase API Key
+- Google Gemini API Key
 
-## Project Structure
+## Installation
 
-```
-HACKELITE/
-├── frontend/                 # React frontend application
-│   ├── src/
-│   │   ├── components/      # Reusable UI components
-│   │   ├── pages/          # Page components
-│   │   ├── services/       # API and Firebase services
-│   │   ├── contexts/       # React contexts
-│   │   └── ...
-│   ├── public/             # Static assets
-│   └── package.json        # Frontend dependencies
-├── backend/                 # FastAPI backend application
-│   ├── app/
-│   │   ├── api/            # API route handlers
-│   │   ├── core/           # Core configuration
-│   │   ├── models/         # Data models
-│   │   ├── services/       # Business logic services
-│   │   └── utils/          # Utility functions
-│   ├── requirements.txt    # Python dependencies
-│   └── main.py            # FastAPI application entry point
-└── README.md              # Project documentation
-```
+### 1. Backend Setup
 
-## Step 1: Backend Setup
-
-### 1.1 Install Python Dependencies
-
+#### Install Python Dependencies
 ```bash
 cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 1.2 Configure Environment Variables
+#### Install Tesseract OCR
+**Windows:**
+1. Download Tesseract from: https://github.com/UB-Mannheim/tesseract/wiki
+2. Install to `C:\Program Files\Tesseract-OCR\`
+3. Add to PATH environment variable
 
-Copy the example environment file and configure it:
+**macOS:**
+```bash
+brew install tesseract
+```
 
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt-get install tesseract-ocr
+```
+
+#### Environment Configuration
 ```bash
 cp env.example .env
 ```
 
-Edit `.env` with your actual values:
-
+Edit `.env` file with your API keys:
 ```env
-# API Configuration
-SECRET_KEY=your-secret-key-here-change-this-in-production
-API_V1_STR=/api/v1
-PROJECT_NAME=AI-Powered Notes Summarizer
-
-# Database Configuration
-MONGODB_URL=mongodb://localhost:27017
-DATABASE_NAME=notes_summarizer
-
 # Firebase Configuration
 FIREBASE_API_KEY=your-firebase-api-key
 FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-FIREBASE_MESSAGING_SENDER_ID=123456789
-FIREBASE_APP_ID=your-app-id
 
 # Google Gemini API
 GEMINI_API_KEY=your-gemini-api-key
 
-# File Upload Configuration
-UPLOAD_DIR=uploads
-MAX_FILE_SIZE=10485760  # 10MB in bytes
+# Database
+MONGODB_URL=mongodb://localhost:27017
+DATABASE_NAME=notes_summarizer
 
-# CORS Configuration
-CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000"]
-
-# Security Configuration
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-ALGORITHM=HS256
+# Security
+SECRET_KEY=your-secret-key-here
 ```
 
-### 1.3 Set Up MongoDB
-
-**Option A: Local MongoDB**
-```bash
-# Install MongoDB locally
-# Start MongoDB service
-mongod
-```
-
-**Option B: MongoDB Atlas**
-- Create a free MongoDB Atlas account
-- Create a new cluster
-- Get your connection string
-- Update `MONGODB_URL` in `.env`
-
-### 1.4 Set Up Google Gemini API
-
-1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Create a new API key
-3. Add the key to your `.env` file as `GEMINI_API_KEY`
-
-### 1.5 Set Up Firebase
-
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project
-3. Enable Authentication with Google and Email/Password providers
-4. Get your Firebase configuration
-5. Add the configuration to your `.env` file
-
-### 1.6 Start the Backend Server
-
+#### Start Backend Server
 ```bash
 cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`
-API documentation: `http://localhost:8000/docs`
+The backend will be available at `http://localhost:8000`
 
-## Step 2: Frontend Setup
+### 2. Frontend Setup
 
-### 2.1 Install Node.js Dependencies
-
+#### Install Node.js Dependencies
 ```bash
 cd frontend
 npm install
 ```
 
-### 2.2 Configure Environment Variables
-
-Copy the example environment file and configure it:
-
+#### Environment Configuration
 ```bash
 cp env.example .env
 ```
 
-Edit `.env` with your actual values:
-
+Edit `.env` file:
 ```env
-# API Configuration
-REACT_APP_API_BASE_URL=http://localhost:8000
-
-# Firebase Configuration
+REACT_APP_API_URL=http://localhost:8000
 REACT_APP_FIREBASE_API_KEY=your-firebase-api-key
 REACT_APP_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 REACT_APP_FIREBASE_PROJECT_ID=your-project-id
-REACT_APP_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-REACT_APP_FIREBASE_MESSAGING_SENDER_ID=123456789
-REACT_APP_FIREBASE_APP_ID=your-app-id
-
-# App Configuration
-REACT_APP_NAME=AI Notes Summarizer
-REACT_APP_VERSION=1.0.0
 ```
 
-### 2.3 Start the Frontend Development Server
-
+#### Start Frontend Development Server
 ```bash
-cd frontend
 npm start
 ```
 
-The application will be available at `http://localhost:3000`
+The frontend will be available at `http://localhost:3000`
 
-## Step 3: Testing the Setup
+## API Endpoints
 
-### 3.1 Test Backend API
+### Authentication
+- `POST /api/auth/login` - User login
+- `GET /api/auth/me` - Get current user
+- `PUT /api/auth/profile` - Update user profile
 
-1. Visit `http://localhost:8000/docs` to see the API documentation
-2. Test the health endpoint: `http://localhost:8000/health`
+### Notes Processing
+- `POST /api/notes/summarize` - Summarize text notes
 
-### 3.2 Test Frontend
+### Voice Processing
+- `POST /api/voice/transcribe` - Transcribe audio files
 
-1. Open `http://localhost:3000` in your browser
-2. You should see the login page
-3. Try creating an account or signing in with Google
+### PDF Processing
+- `POST /api/pdf/process` - Process PDF files
 
-### 3.3 Test Features
+### Image Processing
+- `POST /api/image/process` - Process images (OCR + summarization)
+- `GET /api/image/history` - Get image processing history
+- `GET /api/image/history/{id}` - Get specific image processing detail
+- `DELETE /api/image/history/{id}` - Delete image processing record
+- `DELETE /api/image/history` - Clear all image history
 
-1. **Notes Summarizer**: Go to `/notes` and try summarizing some text
-2. **Voice to Text**: Go to `/voice` and test audio transcription
-3. **PDF Processor**: Go to `/pdf` and test PDF text extraction
-4. **Quiz Generator**: Go to `/quiz` and test quiz generation
-5. **Mind Map Creator**: Go to `/mindmap` and test mind map creation
-6. **ELI5 Simplifier**: Go to `/eli5` and test topic simplification
+### Quiz Generation
+- `POST /api/quiz/generate` - Generate quizzes
 
-## Step 4: Production Deployment
+### Mind Map Creation
+- `POST /api/mindmap/create` - Create mind maps
 
-### 4.1 Backend Deployment
+### ELI5 Simplification
+- `POST /api/eli5/simplify` - Simplify complex topics
 
-**Option A: Heroku**
-```bash
-# Create Procfile
-echo "web: uvicorn main:app --host 0.0.0.0 --port \$PORT" > Procfile
+### History
+- `GET /api/history` - Get processing history
+- `GET /api/history/summary` - Get history summary
+- `DELETE /api/history/{id}` - Delete history item
+- `DELETE /api/history` - Clear all history
 
-# Deploy to Heroku
-heroku create your-app-name
-heroku config:set MONGODB_URL=your-mongodb-url
-heroku config:set GEMINI_API_KEY=your-gemini-key
-heroku config:set FIREBASE_API_KEY=your-firebase-key
-git push heroku main
-```
+## Database Collections
 
-**Option B: DigitalOcean App Platform**
-- Connect your GitHub repository
-- Set environment variables
-- Deploy automatically
+The application uses MongoDB with the following collections:
+- `users` - User information
+- `history` - Processing history for all features
+- `image_history` - Image processing history
 
-### 4.2 Frontend Deployment
+## Security Features
 
-**Option A: Vercel**
-```bash
-npm install -g vercel
-vercel
-```
+- JWT-based authentication
+- Firebase authentication integration
+- File upload validation
+- CORS configuration
+- Input sanitization
+- Rate limiting (configurable)
 
-**Option B: Netlify**
-- Connect your GitHub repository
-- Build command: `npm run build`
-- Publish directory: `build`
+## File Upload Limits
+
+- **Images**: 10MB max, supports JPG, PNG, and other image formats
+- **Audio**: 10MB max, supports MP3, WAV, and other audio formats
+- **PDFs**: 10MB max
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **MongoDB Connection Error**
-   - Check if MongoDB is running
-   - Verify connection string in `.env`
-   - Ensure network access if using MongoDB Atlas
+1. **Tesseract not found**
+   - Ensure Tesseract is installed and in PATH
+   - For Windows, verify installation path in `image_service.py`
 
-2. **Firebase Authentication Error**
-   - Verify Firebase configuration
-   - Check if Authentication is enabled in Firebase Console
-   - Ensure correct API keys
-
-3. **Gemini API Error**
-   - Verify API key is correct
-   - Check API quota and billing
-   - Ensure API is enabled in Google Cloud Console
-
-4. **CORS Error**
-   - Check CORS configuration in backend
+2. **CORS errors**
+   - Check CORS configuration in `main.py`
    - Verify frontend URL is in allowed origins
 
-5. **Port Already in Use**
-   - Change port in backend: `uvicorn main:app --port 8001`
-   - Update frontend API URL accordingly
+3. **Authentication errors**
+   - Verify Firebase configuration
+   - Check JWT token expiration
 
-### Getting Help
+4. **API key errors**
+   - Ensure all required API keys are set in `.env`
+   - Verify Gemini API key is valid
 
-- Check the API documentation at `http://localhost:8000/docs`
-- Review the console logs for detailed error messages
-- Ensure all environment variables are properly set
+### Debug Mode
 
-## Security Considerations
+Enable debug logging by setting environment variable:
+```bash
+export LOG_LEVEL=DEBUG
+```
 
-1. **Environment Variables**: Never commit `.env` files to version control
-2. **API Keys**: Keep your API keys secure and rotate them regularly
-3. **CORS**: Configure CORS properly for production
-4. **Rate Limiting**: Implement rate limiting for production use
-5. **Input Validation**: All user inputs are validated on both frontend and backend
+## Development
 
-## Performance Optimization
+### Backend Development
+- FastAPI with automatic API documentation
+- Available at `http://localhost:8000/docs`
 
-1. **Database Indexing**: Add indexes to frequently queried fields
-2. **Caching**: Implement Redis caching for frequently accessed data
-3. **File Upload**: Use CDN for file storage in production
-4. **API Optimization**: Implement pagination and filtering
-5. **Frontend Optimization**: Use React.memo and useMemo for performance
+### Frontend Development
+- React with Tailwind CSS
+- Hot reload enabled
+- Component-based architecture
+
+## Deployment
+
+### Backend Deployment
+1. Set production environment variables
+2. Use production WSGI server (e.g., Gunicorn)
+3. Configure reverse proxy (e.g., Nginx)
+
+### Frontend Deployment
+1. Build production bundle: `npm run build`
+2. Serve static files
+3. Configure API URL for production
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create feature branch
+3. Make changes
+4. Test thoroughly
+5. Submit pull request
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License. 

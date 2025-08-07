@@ -5,7 +5,7 @@ import uvicorn
 from dotenv import load_dotenv
 import os
 
-from app.api import auth, notes, voice, pdf, quiz, mindmap, eli5, history
+from app.api import auth, notes, voice, pdf, quiz, mindmap, eli5, history, image
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection
 
@@ -39,6 +39,7 @@ app.include_router(quiz.router, prefix="/api/quiz", tags=["Quiz"])
 app.include_router(mindmap.router, prefix="/api/mindmap", tags=["Mind Map"])
 app.include_router(eli5.router, prefix="/api/eli5", tags=["ELI5"])
 app.include_router(history.router, prefix="/api/history", tags=["History"])
+app.include_router(image.router, prefix="/api/image", tags=["Image Processing"])
 
 # Health check endpoint
 @app.get("/")
