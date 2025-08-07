@@ -17,6 +17,10 @@ security = HTTPBearer()
 class FirebaseAuthRequest(BaseModel):
     id_token: str
 
+class ProfileUpdateRequest(BaseModel):
+    display_name: Optional[str] = None
+    email: Optional[str] = None
+
 class AuthResponse(BaseModel):
     user: UserResponse
     access_token: str
@@ -140,6 +144,44 @@ async def login(auth_request: FirebaseAuthRequest):
 async def get_current_user_info(current_user: UserResponse = Depends(get_current_user)):
     """Get current user information."""
     return current_user
+
+@router.put("/profile", response_model=UserResponse)
+async def update_profile(
+    profile_data: ProfileUpdateRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Update user profile."""
+    try:
+        users_collection = get_collection("users")
+        
+        # Build update data
+        update_data = {}
+        if profile_data.display_name is not None:
+            update_data["display_name"] = profile_data.display_name
+        if profile_data.email is not None:
+            update_data["email"] = profile_data.email
+        
+        if not update_data:
+            return current_user
+        
+        # Update user in database
+        await users_collection.update_one(
+            {"firebase_uid": current_user.firebase_uid},
+            {"$set": update_data}
+        )
+        
+        # Get updated user
+        updated_user = await users_collection.find_one({"firebase_uid": current_user.firebase_uid})
+        updated_user["_id"] = str(updated_user["_id"])
+        
+        return UserResponse(**updated_user)
+        
+    except Exception as e:
+        logger.error(f"Error updating profile: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update profile"
+        )
 
 @router.post("/logout")
 async def logout():

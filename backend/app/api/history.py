@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, Query
+from fastapi import APIRouter, HTTPException, Depends, status, Query, Request
 from pydantic import BaseModel
 from typing import Optional, List
 import logging
@@ -48,16 +48,15 @@ async def get_user_history(
     """Get user's processing history with optional filtering."""
     try:
         history_collection = get_collection("history")
-        
+        logger.info(f"Fetching history for user: {current_user.id}, feature_type: {feature_type}, limit: {limit}, offset: {offset}")
         # Build query
         query = {"user_id": str(current_user.id)}
         if feature_type:
             query["feature_type"] = feature_type
-        
         # Get history items
         cursor = history_collection.find(query).sort("created_at", -1).skip(offset).limit(limit)
         history_items = await cursor.to_list(length=limit)
-        
+        logger.info(f"Found {len(history_items)} history items for user {current_user.id}")
         # Convert to response format
         items = []
         for item in history_items:
@@ -76,11 +75,9 @@ async def get_user_history(
             except Exception as e:
                 logger.error(f"Error converting history item: {e}, item: {item}")
                 continue
-        
         return items
-        
     except Exception as e:
-        logger.error(f"Error getting user history: {e}")
+        logger.error(f"Error getting user history: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve history"
@@ -208,6 +205,25 @@ async def get_feature_history(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve feature history"
         )
+
+@router.post("/seed-test", tags=["Debug"], include_in_schema=False)
+async def seed_test_history(request: Request):
+    """Temporary endpoint to seed a test history item for debugging (local dev only)."""
+    try:
+        history_collection = get_collection("history")
+        test_item = {
+            "user_id": "test-user-id",
+            "feature_type": "eli5",
+            "input_data": {"topic": "Test Topic", "complexity_level": "easy"},
+            "output_data": {"original_topic": "Test Topic", "key_concepts_count": 2, "examples_count": 1, "analogies_count": 1},
+            "processing_time": 1.23,
+            "status": "completed",
+            "created_at": datetime.utcnow()
+        }
+        result = await history_collection.insert_one(test_item)
+        return {"message": "Seeded test history item", "id": str(result.inserted_id)}
+    except Exception as e:
+        return {"error": str(e)}
 
 @router.delete("/{history_id}")
 async def delete_history_item(

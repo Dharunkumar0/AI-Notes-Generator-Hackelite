@@ -2,25 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { History as HistoryIcon, Clock, Activity, Trash2, Filter, ChevronDown } from 'lucide-react';
 import { historyService } from '../services/historyService';
 import { format } from 'date-fns';
+import { useAuth } from '../contexts/AuthContext';
 
 const HistoryPage = () => {
+  const { user } = useAuth();
   const [history, setHistory] = useState([]);
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null); // <-- Add error state
   const [filterType, setFilterType] = useState('');
   const [days, setDays] = useState(30);
 
   useEffect(() => {
-    loadHistory();
-    loadSummary();
-  }, [filterType, days]);
+    if (user) {
+      loadHistory();
+      loadSummary();
+    }
+  }, [filterType, days, user]);
 
   const loadHistory = async () => {
     try {
       setIsLoading(true);
+      setError(null); // Reset error
       const data = await historyService.getHistory({ feature_type: filterType });
       setHistory(data);
     } catch (error) {
+      setError(error?.response?.data?.detail || error.message || 'Unknown error');
+      setHistory([]);
       console.error('Error loading history:', error);
     } finally {
       setIsLoading(false);
@@ -129,10 +137,20 @@ const HistoryPage = () => {
         </div>
 
         <div className="p-4">
-          {isLoading ? (
+          {!user ? (
+            <div className="text-center py-12 text-yellow-600">
+              <h2 className="text-xl font-semibold mb-2">You are not logged in</h2>
+              <p>Please log in to view your history.</p>
+            </div>
+          ) : isLoading ? (
             <div className="text-center py-8">
               <div className="spinner"></div>
               <p className="mt-2 text-gray-600">Loading history...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12 text-red-600">
+              <h2 className="text-xl font-semibold mb-2">Error loading history</h2>
+              <p>{error}</p>
             </div>
           ) : history.length === 0 ? (
             <div className="text-center py-12">
@@ -141,7 +159,7 @@ const HistoryPage = () => {
                 No History Found
               </h2>
               <p className="text-gray-600 dark:text-gray-400">
-                Start using the app's features to see your activity history
+                Start using the app's features (ELI5, PDF, Quiz, etc.) to see your activity history.
               </p>
             </div>
           ) : (
