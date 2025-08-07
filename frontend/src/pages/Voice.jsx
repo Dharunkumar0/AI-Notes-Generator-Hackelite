@@ -44,10 +44,19 @@ const Voice = () => {
     setSummary('');
 
     try {
-      if (file.size > 10 * 1024 * 1024) {
-        throw new Error('File size exceeds 10MB limit. Please select a smaller file.');
+      // Reduce max file size to 5MB to prevent timeouts
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('File size exceeds 5MB limit. For better performance, please select a smaller file or try a shorter audio clip.');
       }
 
+      // Validate file type
+      const fileType = file.type.toLowerCase();
+      if (!fileType.includes('audio/')) {
+        throw new Error('Please select a valid audio file.');
+      }
+
+      // Show specific message for processing
+      setError('Processing audio file. This may take a few moments for longer files...');
       const result = await voiceService.transcribeAudioFile(file);
 
       if (result.transcription) {

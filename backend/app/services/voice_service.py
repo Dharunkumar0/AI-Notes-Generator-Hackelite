@@ -208,97 +208,97 @@ class VoiceService:
                 except:
                     pass
 
-    async def transcribe_audio_file(self, audio_file_path: str, original_format: str = "wav") -> Dict[str, Any]:
-        """Transcribe audio file to text."""
-        temp_wav_path = None
-        try:
-            logger.debug(f"Processing audio file: {audio_file_path}")
+    # async def transcribe_audio_file(self, audio_file_path: str, original_format: str = "wav") -> Dict[str, Any]:
+    #     """Transcribe audio file to text."""
+    #     temp_wav_path = None
+    #     try:
+    #         logger.debug(f"Processing audio file: {audio_file_path}")
             
-            # Check if FFmpeg is required and available
-            if original_format.lower() != "wav" and not self._has_ffmpeg:
-                raise ValueError("FFmpeg is required for non-WAV files but is not installed")
+    #         # Check if FFmpeg is required and available
+    #         if original_format.lower() != "wav" and not self._has_ffmpeg:
+    #             raise ValueError("FFmpeg is required for non-WAV files but is not installed")
             
-            # Convert to WAV if needed
-            if original_format.lower() != "wav":
-                logger.debug(f"Converting {original_format} to WAV format")
-                try:
-                    temp_wav_path = self._convert_to_wav(audio_file_path, original_format)
-                    process_path = temp_wav_path
-                except Exception as e:
-                    logger.error(f"Error converting to WAV: {str(e)}")
-                    raise ValueError(f"Failed to convert audio format: {str(e)}")
-            else:
-                process_path = audio_file_path
+    #         # Convert to WAV if needed
+    #         if original_format.lower() != "wav":
+    #             logger.debug(f"Converting {original_format} to WAV format")
+    #             try:
+    #                 temp_wav_path = self._convert_to_wav(audio_file_path, original_format)
+    #                 process_path = temp_wav_path
+    #             except Exception as e:
+    #                 logger.error(f"Error converting to WAV: {str(e)}")
+    #                 raise ValueError(f"Failed to convert audio format: {str(e)}")
+    #         else:
+    #             process_path = audio_file_path
             
-            logger.debug(f"Transcribing WAV file: {process_path}")
+    #         logger.debug(f"Transcribing WAV file: {process_path}")
             
-            try:
-                with sr.AudioFile(process_path) as source:
-                    # Adjust for ambient noise
-                    self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
-                    audio = self.recognizer.record(source)
+    #         try:
+    #             with sr.AudioFile(process_path) as source:
+    #                 # Adjust for ambient noise
+    #                 self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+    #                 audio = self.recognizer.record(source)
                     
-                    # Try recognizing with Google Speech Recognition
-                    text = self.recognizer.recognize_google(audio)
+    #                 # Try recognizing with Google Speech Recognition
+    #                 text = self.recognizer.recognize_google(audio)
                     
-                    # Get audio duration
-                    with wave.open(process_path, 'rb') as wave_file:
-                        duration = wave_file.getnframes() / wave_file.getframerate()
+    #                 # Get audio duration
+    #                 with wave.open(process_path, 'rb') as wave_file:
+    #                     duration = wave_file.getnframes() / wave_file.getframerate()
                     
-                    # Create timestamps
-                    words = text.split()
-                    word_count = len(words)
-                    timestamps = []
+    #                 # Create timestamps
+    #                 words = text.split()
+    #                 word_count = len(words)
+    #                 timestamps = []
                     
-                    if word_count > 0:
-                        avg_word_duration = duration / word_count
-                        current_time = 0
-                        for i, word in enumerate(words):
-                            timestamps.append({
-                                "word": word,
-                                "start_time": round(current_time, 2),
-                                "end_time": round(current_time + avg_word_duration, 2)
-                            })
-                            current_time += avg_word_duration
+    #                 if word_count > 0:
+    #                     avg_word_duration = duration / word_count
+    #                     current_time = 0
+    #                     for i, word in enumerate(words):
+    #                         timestamps.append({
+    #                             "word": word,
+    #                             "start_time": round(current_time, 2),
+    #                             "end_time": round(current_time + avg_word_duration, 2)
+    #                         })
+    #                         current_time += avg_word_duration
                     
-                    return {
-                        "success": True,
-                        "data": {
-                            "transcription": text,
-                            "confidence": 0.9,
-                            "word_count": word_count,
-                            "duration": round(duration, 2),
-                            "timestamps": timestamps
-                        }
-                    }
+    #                 return {
+    #                     "success": True,
+    #                     "data": {
+    #                         "transcription": text,
+    #                         "confidence": 0.9,
+    #                         "word_count": word_count,
+    #                         "duration": round(duration, 2),
+    #                         "timestamps": timestamps
+    #                     }
+    #                 }
                     
-            except sr.UnknownValueError:
-                logger.error("Speech could not be understood")
-                return {
-                    "success": False,
-                    "error": "Speech could not be understood. Please check the audio quality."
-                }
-            except sr.RequestError as e:
-                logger.error(f"Could not request results from speech recognition service: {e}")
-                return {
-                    "success": False,
-                    "error": f"Speech recognition service error: {str(e)}"
-                }
+    #         except sr.UnknownValueError:
+    #             logger.error("Speech could not be understood")
+    #             return {
+    #                 "success": False,
+    #                 "error": "Speech could not be understood. Please check the audio quality."
+    #             }
+    #         except sr.RequestError as e:
+    #             logger.error(f"Could not request results from speech recognition service: {e}")
+    #             return {
+    #                 "success": False,
+    #                 "error": f"Speech recognition service error: {str(e)}"
+    #             }
                 
-        except Exception as e:
-            logger.error(f"Error transcribing audio file: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-        finally:
-            # Clean up temporary WAV file
-            if temp_wav_path and os.path.exists(temp_wav_path):
-                try:
-                    os.remove(temp_wav_path)
-                    logger.debug(f"Removed temporary WAV file: {temp_wav_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to remove temporary WAV file: {str(e)}")
+    #     except Exception as e:
+    #         logger.error(f"Error transcribing audio file: {str(e)}")
+    #         return {
+    #             "success": False,
+    #             "error": str(e)
+    #         }
+    #     finally:
+    #         # Clean up temporary WAV file
+    #         if temp_wav_path and os.path.exists(temp_wav_path):
+    #             try:
+    #                 os.remove(temp_wav_path)
+    #                 logger.debug(f"Removed temporary WAV file: {temp_wav_path}")
+    #             except Exception as e:
+    #                 logger.warning(f"Failed to remove temporary WAV file: {str(e)}")
                     
     async def transcribe_audio_bytes(self, audio_bytes: bytes, format: str = "wav") -> Dict[str, Any]:
         """Transcribe audio bytes to text."""
