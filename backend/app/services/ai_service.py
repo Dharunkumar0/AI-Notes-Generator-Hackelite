@@ -196,54 +196,110 @@ class AIService:
     async def create_mindmap(self, topic: str, subtopics: List[str] = None) -> Dict[str, Any]:
         """Create a mind map structure for a topic using AI."""
         try:
+            if not self.model:
+                raise ValueError("AI model not initialized. Check if GEMINI_API_KEY is set correctly.")
+
+            if not topic or not topic.strip():
+                raise ValueError("Topic cannot be empty")
+
+            base_prompt = """
+            Create a comprehensive mind map structure. The response must be a valid JSON object.
+            Include 3-5 main branches, each with 2-4 subtopics.
+            Each subtopic should have 2-3 key details or facts.
+            
+            Response format must be exactly:
+            {
+                "topic": "main topic",
+                "branches": [
+                    {
+                        "name": "main branch name",
+                        "subtopics": [
+                            {
+                                "name": "subtopic name",
+                                "details": ["detail 1", "detail 2"]
+                            }
+                        ]
+                    }
+                ]
+            }
+            
+            Do not use any markdown formatting in the response.
+            Respond only with the JSON object, no additional text or explanations.
+            """
+            
             if not subtopics:
                 prompt = f"""
-                Create a comprehensive mind map structure for the topic: "{topic}"
-                Include main branches and sub-branches with key concepts and ideas.
+                {base_prompt}
                 
-                Please provide the mind map in the following JSON format:
-                {{
-                    "topic": "{topic}",
-                    "branches": [
-                        {{
-                            "name": "branch name",
-                            "subtopics": [
-                                {{
-                                    "name": "subtopic name",
-                                    "details": ["detail 1", "detail 2"]
-                                }}
-                            ]
-                        }}
-                    ]
-                }}
+                Generate a mind map for this topic: "{topic}"
                 """
             else:
                 prompt = f"""
-                Create a mind map structure for the topic: "{topic}" with the following subtopics: {', '.join(subtopics)}
+                {base_prompt}
                 
-                Please provide the mind map in the following JSON format:
-                {{
-                    "topic": "{topic}",
-                    "branches": [
-                        {{
-                            "name": "subtopic name",
-                            "subtopics": [
-                                {{
-                                    "name": "subtopic name",
-                                    "details": ["detail 1", "detail 2"]
-                                }}
-                            ]
-                        }}
-                    ]
-                }}
+                Generate a mind map for the topic "{topic}" that incorporates these subtopics: {', '.join(subtopics)}
+                Organize the provided subtopics into logical branches and add additional relevant subtopics as needed.
                 """
             
             response = self.model.generate_content(prompt)
-            result = json.loads(response.text)
+            response_text = response.text.strip()
             
+            try:
+                # Handle possible markdown code blocks in response
+                if response_text.startswith('```json'):
+                    response_text = response_text[7:-3]  # Remove ```json and ``` markers
+                elif response_text.startswith('```'):
+                    response_text = response_text[3:-3]  # Remove ``` markers
+                
+                response_text = response_text.strip()
+                result = json.loads(response_text)
+                
+                # Validate required fields and structure
+                if not isinstance(result, dict):
+                    raise ValueError("Invalid response format: root must be an object")
+                
+                if "topic" not in result or not isinstance(result["topic"], str):
+                    raise ValueError("Invalid response format: missing or invalid 'topic' field")
+                
+                if "branches" not in result or not isinstance(result["branches"], list):
+                    raise ValueError("Invalid response format: missing or invalid 'branches' array")
+                
+                # Validate each branch
+                for branch in result["branches"]:
+                    if not isinstance(branch, dict):
+                        raise ValueError("Invalid branch format: must be an object")
+                    
+                    if "name" not in branch or not isinstance(branch["name"], str):
+                        raise ValueError("Invalid branch format: missing or invalid 'name' field")
+                    
+                    if "subtopics" not in branch or not isinstance(branch["subtopics"], list):
+                        raise ValueError("Invalid branch format: missing or invalid 'subtopics' array")
+                    
+                    # Validate each subtopic
+                    for subtopic in branch["subtopics"]:
+                        if not isinstance(subtopic, dict):
+                            raise ValueError("Invalid subtopic format: must be an object")
+                        
+                        if "name" not in subtopic or not isinstance(subtopic["name"], str):
+                            raise ValueError("Invalid subtopic format: missing or invalid 'name' field")
+                        
+                        if "details" not in subtopic or not isinstance(subtopic["details"], list):
+                            raise ValueError("Invalid subtopic format: missing or invalid 'details' array")
+                
+                return {
+                    "success": True,
+                    "data": result
+                }
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse AI response: {response_text}")
+                raise ValueError(f"Invalid JSON format in AI response: {str(e)}")
+            
+        except ValueError as e:
+            logger.error(f"Validation error in create_mindmap: {str(e)}")
             return {
-                "success": True,
-                "data": result
+                "success": False,
+                "error": str(e)
             }
         except Exception as e:
             logger.error(f"Error creating mind map: {e}")
@@ -255,28 +311,98 @@ class AIService:
     async def simplify_topic(self, topic: str, complexity_level: str = "basic") -> Dict[str, Any]:
         """Simplify complex topics using ELI5 (Explain Like I'm 5) approach."""
         try:
+            if not self.model:
+                raise ValueError("AI model not initialized. Check if GEMINI_API_KEY is set correctly.")
+
+            if not topic or not topic.strip():
+                raise ValueError("Topic cannot be empty")
+
+            complexity_prompts = {
+                "basic": "like you're explaining to a 10-year-old, using very simple terms",
+                "intermediate": "for a high school student, balancing simplicity with some technical details",
+                "advanced": "for a college student, maintaining clarity while including technical concepts"
+            }
+
             prompt = f"""
-            Explain the following topic in simple terms that a {complexity_level} level student can understand.
-            Use analogies, examples, and break down complex concepts into digestible parts.
+            Explain this topic {complexity_prompts.get(complexity_level, complexity_prompts["basic"])}.
+            Break down complex concepts into simpler parts.
+            Use clear analogies and real-world examples.
             
-            Topic: {topic}
+            Topic to explain: {topic}
             
-            Please provide the explanation in the following JSON format:
+            Respond with only a JSON object in this exact format:
             {{
                 "original_topic": "{topic}",
-                "simple_explanation": "simple explanation",
-                "key_concepts": ["concept 1", "concept 2"],
-                "examples": ["example 1", "example 2"],
-                "analogies": ["analogy 1", "analogy 2"]
+                "simple_explanation": "A clear, simple explanation of the topic",
+                "key_concepts": [
+                    "Key concept 1 in simple terms",
+                    "Key concept 2 in simple terms"
+                ],
+                "examples": [
+                    "A concrete, real-world example 1",
+                    "A concrete, real-world example 2"
+                ],
+                "analogies": [
+                    "A relatable analogy 1",
+                    "A relatable analogy 2"
+                ]
             }}
+
+            Requirements:
+            1. No markdown formatting
+            2. No code blocks
+            3. Each array should have 2-4 items
+            4. Keep explanations concise and clear
+            5. Use language appropriate for the {complexity_level} level
             """
             
             response = self.model.generate_content(prompt)
-            result = json.loads(response.text)
+            response_text = response.text.strip()
             
+            try:
+                # Handle possible markdown code blocks in response
+                if response_text.startswith('```json'):
+                    response_text = response_text[7:-3]  # Remove ```json and ``` markers
+                elif response_text.startswith('```'):
+                    response_text = response_text[3:-3]  # Remove ``` markers
+                
+                response_text = response_text.strip()
+                result = json.loads(response_text)
+                
+                # Validate required fields and structure
+                required_fields = ["original_topic", "simple_explanation", "key_concepts", "examples", "analogies"]
+                for field in required_fields:
+                    if field not in result:
+                        raise ValueError(f"Missing required field: {field}")
+                    
+                    # Check if arrays have the right type and structure
+                    if field in ["key_concepts", "examples", "analogies"]:
+                        if not isinstance(result[field], list):
+                            raise ValueError(f"Field {field} must be an array")
+                        if not result[field] or len(result[field]) < 1:
+                            raise ValueError(f"Field {field} must have at least one item")
+                        if not all(isinstance(item, str) for item in result[field]):
+                            raise ValueError(f"All items in {field} must be strings")
+                    
+                    # Check string fields
+                    if field in ["original_topic", "simple_explanation"]:
+                        if not isinstance(result[field], str) or not result[field].strip():
+                            raise ValueError(f"Field {field} must be a non-empty string")
+                
+                return {
+                    "success": True,
+                    "data": result
+                }
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse AI response: {response_text}")
+                raise ValueError(f"Invalid JSON format in AI response: {str(e)}")
+                
+        except ValueError as e:
+            logger.error(f"Validation error in simplify_topic: {str(e)}")
             return {
-                "success": True,
-                "data": result
+                "success": False,
+                "error": str(e)
             }
         except Exception as e:
             logger.error(f"Error simplifying topic: {e}")
@@ -359,4 +485,4 @@ class AIService:
             }
 
 # Create a singleton instance
-ai_service = AIService() 
+ai_service = AIService()
