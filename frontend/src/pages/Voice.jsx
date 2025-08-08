@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Upload, Play, StopCircle, Loader, FileText } from 'lucide-react';
+import { Mic, Upload, FileText } from 'lucide-react';
 import { voiceService } from '../services/voiceService';
 import { notesService } from '../services/notesService';
 import VoiceEmotionAnalysis from '../components/VoiceEmotionAnalysis';
+import VoiceRecorder from '../components/VoiceRecorder';
 
 const Voice = () => {
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcription, setTranscription] = useState('');
   const [confidence, setConfidence] = useState(null);
@@ -101,34 +101,13 @@ const Voice = () => {
     }
   };
 
-  const handleRecord = async () => {
-    if (isRecording) {
-      setIsRecording(false);
-      try {
-        setIsProcessing(true);
-        setError('');
-        const result = await voiceService.transcribeMicrophone(10); // 10-second recording
-        if (result.transcription) {
-          setTranscription(result.transcription);
-        } else {
-          throw new Error('No transcription received from microphone');
-        }
-      } catch (err) {
-        const errorMessage = err.message || err.response?.data?.detail || 'Failed to transcribe voice';
-        setError(errorMessage);
-        console.error('Microphone error:', err);
-      } finally {
-        setIsProcessing(false);
-      }
-    } else {
-      setIsRecording(true);
-      setTranscription('');
-      setError('');
-      setConfidence(null);
-      setDuration(null);
-      setWordCount(null);
-      setTimestamps([]);
-    }
+  const handleTranscriptionComplete = (data) => {
+    setTranscription(data.transcription);
+    setConfidence(data.confidence || null);
+    setDuration(data.duration || null);
+    setWordCount(data.word_count || null);
+    setTimestamps(data.timestamps || []);
+    setError('');
   };
 
   return (
@@ -151,7 +130,7 @@ const Voice = () => {
             Upload audio files ({supportedFormats.join(', ')}) or record directly to convert speech to text
           </p>
 
-          <div className="flex justify-center space-x-4">
+          <div className="flex flex-col items-center space-y-6">
             <input
               type="file"
               ref={fileInputRef}
@@ -159,37 +138,22 @@ const Voice = () => {
               className="hidden"
               onChange={handleFileUpload}
             />
+            
+            <VoiceRecorder onTranscriptionComplete={handleTranscriptionComplete} />
+
             <button
               className="btn-primary flex items-center"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isProcessing || isRecording}
+              disabled={isProcessing}
             >
               <Upload className="h-4 w-4 mr-2" />
               Upload Audio
             </button>
-            <button
-              className={`btn-secondary flex items-center ${isRecording ? 'bg-red-500 hover:bg-red-600' : ''}`}
-              onClick={handleRecord}
-              disabled={isProcessing}
-            >
-              {isRecording ? (
-                <>
-                  <StopCircle className="h-4 w-4 mr-2" />
-                  Stop Recording
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4 mr-2" />
-                  Record Voice
-                </>
-              )}
-            </button>
           </div>
 
-          {(isProcessing || isRecording) && (
+          {isProcessing && (
             <div className="mt-6 flex items-center justify-center text-primary-600">
-              <Loader className="h-6 w-6 animate-spin mr-2" />
-              <span>{isRecording ? 'Recording...' : 'Processing...'}</span>
+              <span>Processing...</span>
             </div>
           )}
 

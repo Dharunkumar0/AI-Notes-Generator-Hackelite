@@ -20,8 +20,10 @@ logger = logging.getLogger(__name__)
 class VoiceService:
     def __init__(self):
         self.recognizer = sr.Recognizer()
-        self.recognizer.energy_threshold = 4000
+        self.recognizer.energy_threshold = 300  # Lower threshold for better sensitivity
         self.recognizer.dynamic_energy_threshold = True
+        self.recognizer.pause_threshold = 0.5  # Shorter pause threshold
+        self.recognizer.phrase_threshold = 0.3  # More sensitive to phrases
         self._has_pyaudio = False
         self._has_ffmpeg = False
         
@@ -91,6 +93,19 @@ class VoiceService:
                     audio = AudioSegment.from_ogg(audio_path)
                 elif original_format.lower() == 'flac':
                     audio = AudioSegment.from_file(audio_path, format='flac')
+                elif original_format.lower() == 'webm':
+                    # Use FFmpeg directly for WebM
+                    import subprocess
+                    wav_path = audio_path.rsplit('.', 1)[0] + '.wav'
+                    subprocess.run([
+                        'ffmpeg', '-i', audio_path,
+                        '-acodec', 'pcm_s16le',
+                        '-ar', '44100',  # Higher sample rate
+                        '-ac', '1',
+                        '-af', 'highpass=f=50,lowpass=f=8000,volume=2',  # Audio filters to improve speech clarity
+                        '-y', wav_path
+                    ], check=True)
+                    return wav_path
                 else:
                     raise ValueError(f"Unsupported format: {original_format}")
             except Exception as e:
@@ -131,6 +146,7 @@ class VoiceService:
                 # Get audio duration
                 with wave.open(process_path, 'rb') as wave_file:
                     duration = wave_file.getnframes() / wave_file.getframerate()
+                    sample_rate = wave_file.getframerate()
                 
                 # Process in 30-second segments if longer than 60 seconds
                 if duration > 60:
@@ -139,7 +155,7 @@ class VoiceService:
                         source.stream.seek(int(offset * source.SAMPLE_RATE))
                         audio_chunk = self.recognizer.record(source, duration=min(chunk_duration, duration - offset))
                         try:
-                            chunk_text = self.recognizer.recognize_google(audio_chunk)
+                            chunk_text = self.recognizer.recognize_google(audio_chunk, language="en-IN")
                             segments.append(chunk_text)
                         except sr.UnknownValueError:
                             # Skip silent segments
@@ -147,11 +163,29 @@ class VoiceService:
                         except sr.RequestError as e:
                             raise e
                 else:
-                    # Adjust for ambient noise for shorter files
-                    self.recognizer.adjust_for_ambient_noise(source, duration=min(0.5, duration/2))
-                    audio = self.recognizer.record(source)
-                    text = self.recognizer.recognize_google(audio)
-                    segments.append(text)
+                    # Multiple attempts with different noise adjustment settings
+                    max_attempts = 3
+                    for attempt in range(max_attempts):
+                        try:
+                            source.stream.seek(0)  # Reset to beginning of audio
+                            
+                            # Adjust noise settings based on attempt
+                            if attempt == 0:
+                                self.recognizer.adjust_for_ambient_noise(source, duration=min(0.5, duration/2))
+                            elif attempt == 1:
+                                self.recognizer.energy_threshold = 200  # Try with lower threshold
+                            else:
+                                self.recognizer.energy_threshold = 100  # Try with even lower threshold
+                            
+                            audio = self.recognizer.record(source)
+                            text = self.recognizer.recognize_google(audio, language="en-IN")
+                            if text:  # If we got a valid transcription
+                                segments.append(text)
+                                break
+                        except sr.UnknownValueError:
+                            if attempt == max_attempts - 1:  # Only raise on last attempt
+                                raise sr.UnknownValueError("Could not understand the audio. Please speak clearly and try again.")
+                            continue
                 
             # Combine all segments
             full_text = " ".join(segments)
@@ -180,14 +214,15 @@ class VoiceService:
                     "word_count": word_count,
                     "duration": round(duration, 2),
                     "timestamps": timestamps,
-                    "segments": len(segments)
+                    "segments": len(segments),
+                    "sample_rate": sample_rate
                 }
             }
                 
-        except sr.UnknownValueError:
+        except sr.UnknownValueError as e:
             return {
                 "success": False,
-                "error": "Speech could not be understood"
+                "error": str(e)
             }
         except sr.RequestError as e:
             return {
@@ -470,7 +505,7 @@ class VoiceService:
             "success": True,
             "data": {
                 "supported_formats": [
-                    "wav", "mp3", "m4a", "flac", "ogg"
+                    "wav", "mp3", "m4a", "flac", "ogg", "webm"
                 ],
                 "recommended_format": "wav",
                 "max_file_size": "10MB",

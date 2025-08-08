@@ -13,6 +13,7 @@ import ELI5 from './pages/ELI5';
 import History from './pages/History';
 import Image from './pages/Image';
 import Profile from './pages/Profile';
+import Research from './pages/Research';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -55,6 +56,7 @@ const AppRoutes = () => {
         <Route path="eli5" element={<ELI5 />} />
         <Route path="image" element={<Image />} />
         <Route path="history" element={<History />} />
+        <Route path="research" element={<Research />} />
         <Route path="profile" element={<Profile />} />
       </Route>
     </Routes>

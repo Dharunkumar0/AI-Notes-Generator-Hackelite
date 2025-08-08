@@ -47,45 +47,26 @@ export const voiceService = {
         throw new Error('File size exceeds 10MB limit');
       }
 
+      // Create form data
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', file); // Using 'file' to match backend expectation
 
       const response = await api.post('/api/voice/transcribe', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      
-      if (!response.data || !response.data.transcription) {
-        throw new Error(response.data?.error || 'Failed to transcribe audio file');
-      }
+
+      // The response is already the data object since FastAPI returns just the response_model
       return response.data;
     } catch (error) {
       console.error('Transcribe audio file error:', error);
-      if (error.response?.data?.error) {
-        throw new Error(error.response.data.error);
+      if (error.response?.data?.detail) {
+        throw new Error(error.response.data.detail);
+      } else if (error.response?.status === 422) {
+        throw new Error('Invalid request format. Please ensure you are sending a valid audio file.');
       } else if (error.response?.status === 500) {
         throw new Error('Server error: Please check if the file format is supported and not corrupted');
-      }
-      throw error;
-    }
-  },
-
-  // Transcribe from microphone
-  transcribeMicrophone: async (duration = 10) => {
-    try {
-      const response = await api.post('/api/voice/microphone', { duration });
-      if (!response.data || !response.data.transcription) {
-      throw new Error('Transcription not received');
-    }
-    return response.data;
-
-    } catch (error) {
-      console.error('Transcribe microphone error:', error);
-      if (error.response?.data?.error) {
-        throw new Error(error.response.data.error);
-      } else if (error.response?.status === 500) {
-        throw new Error('Server error: Please check if your microphone is properly connected and accessible');
       }
       throw error;
     }

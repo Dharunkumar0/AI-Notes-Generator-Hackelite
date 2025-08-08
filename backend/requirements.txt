@@ -8,6 +8,7 @@ python-multipart==0.0.6
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 google-generativeai==0.3.2
+scholarly==1.7.11
 SpeechRecognition==3.10.0
 email-validator==2.1.0.post1
 PyAudio==0.2.14

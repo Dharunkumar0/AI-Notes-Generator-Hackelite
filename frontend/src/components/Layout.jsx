@@ -15,7 +15,8 @@ import {
   User, 
   LogOut,
   Sun,
-  Moon
+  Moon,
+  BookOpen
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -37,6 +38,7 @@ const Layout = () => {
     { name: 'Quiz', href: '/quiz', icon: HelpCircle },
     { name: 'Mind Map', href: '/mindmap', icon: Brain },
     { name: 'ELI5', href: '/eli5', icon: Lightbulb },
+    //{ name: 'Research', href: '/research', icon: BookOpen },
     { name: 'History', href: '/history', icon: History },
     { name: 'Profile', href: '/profile', icon: User },
   ];
