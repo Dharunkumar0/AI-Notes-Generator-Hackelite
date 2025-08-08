@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 // Create axios instance with auth interceptor
 const api = axios.create({
@@ -44,7 +44,8 @@ export const imageService = {
       return response.data;
     } catch (error) {
       console.error('Error processing image:', error);
-      throw error;
+      const errorMessage = error.response?.data?.detail || 'Failed to process image. Please try again later.';
+      throw new Error(errorMessage);
     }
   },
 

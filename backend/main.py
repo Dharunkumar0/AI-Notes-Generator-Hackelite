@@ -5,7 +5,7 @@ import uvicorn
 from dotenv import load_dotenv
 import os
 
-from app.api import auth, notes, voice, pdf, quiz, mindmap, eli5, history, image
+from app.api import auth, notes, voice, pdf, quiz, mindmap, eli5, history, image, export
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection
 
@@ -14,7 +14,7 @@ load_dotenv()
 
 # Create FastAPI app
 app = FastAPI(
-    title="AI-Powered Notes Summarizer API",
+    title="ThinkInk AI API",
     description="A comprehensive API for AI-powered educational tools including notes summarization, voice transcription, PDF processing, quiz generation, mind maps, and ELI5 explanations.",
     version="1.0.0",
     docs_url="/docs",
@@ -40,12 +40,17 @@ app.include_router(mindmap.router, prefix="/api/mindmap", tags=["Mind Map"])
 app.include_router(eli5.router, prefix="/api/eli5", tags=["ELI5"])
 app.include_router(history.router, prefix="/api/history", tags=["History"])
 app.include_router(image.router, prefix="/api/image", tags=["Image Processing"])
+app.include_router(export.router, prefix="/api/export", tags=["Export"])
+
+# Serve static files (for uploaded images)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 
 # Health check endpoint
 @app.get("/")
 async def root():
     return {
-        "message": "AI-Powered Notes Summarizer API",
+        "message": "ThinkInk AI API",
         "version": "1.0.0",
         "status": "running"
     }

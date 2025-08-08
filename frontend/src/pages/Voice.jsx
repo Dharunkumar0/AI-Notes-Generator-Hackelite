@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Upload, Play, StopCircle, Loader, FileText } from 'lucide-react';
 import { voiceService } from '../services/voiceService';
 import { notesService } from '../services/notesService';
+import VoiceEmotionAnalysis from '../components/VoiceEmotionAnalysis';
 
 const Voice = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -269,6 +270,9 @@ const Voice = () => {
           )}
         </div>
       </div>
+
+      {/* Voice Emotion Analysis Component */}
+      <VoiceEmotionAnalysis />
     </div>
   );
 };

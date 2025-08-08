@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { File, Upload, FileText, Loader, Info, X } from 'lucide-react';
+import { File, Upload, FileText, Loader, Info, X, BookOpen } from 'lucide-react';
 import { pdfService } from '../services/pdfService';
 
 const PDF = () => {
@@ -8,6 +8,9 @@ const PDF = () => {
   const [extractedText, setExtractedText] = useState(null);
   const [error, setError] = useState('');
   const [formats, setFormats] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [summarizing, setSummarizing] = useState(false);
+  const [maxLength, setMaxLength] = useState(500);
   const fileInputRef = useRef();
 
   useEffect(() => {
@@ -53,8 +56,26 @@ const PDF = () => {
     setExtractedText(null);
     setPdfInfo(null);
     setError('');
+    setSummary(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSummarize = async (pageIndex) => {
+    try {
+      setSummarizing(true);
+      setError('');
+      const text = extractedText.pages[pageIndex].text;
+      const result = await pdfService.summarizeText(text, maxLength);
+      setSummary({
+        ...result,
+        pageIndex
+      });
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to summarize text');
+    } finally {
+      setSummarizing(false);
     }
   };
 
@@ -153,10 +174,59 @@ const PDF = () => {
                       {extractedText.word_count} words | {extractedText.total_pages} pages | {Math.round(extractedText.processing_time * 100) / 100}s
                     </span>
                   </div>
+
+                  {/* Summarization Controls */}
+                  <div className="mb-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Max Summary Length (words)
+                        </label>
+                        <input
+                          type="number"
+                          value={maxLength}
+                          onChange={(e) => setMaxLength(Number(e.target.value))}
+                          min="100"
+                          max="1000"
+                          className="input-field w-32"
+                        />
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Select a page and click "Summarize" to generate a summary
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary Results */}
+                  {summary && (
+                    <div className="mb-4 bg-primary-50 dark:bg-primary-900/20 p-4 rounded-lg">
+                      <h4 className="font-semibold mb-2">Summary of Page {summary.pageIndex + 1}</h4>
+                      <p className="text-gray-700 dark:text-gray-300">{summary.summary}</p>
+                      <div className="mt-2 text-sm text-gray-500">
+                        Processing time: {summary.processing_time.toFixed(2)}s | 
+                        Word count: {summary.word_count}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Extracted Text by Page */}
                   <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg max-h-96 overflow-y-auto">
                     {extractedText.pages.map((page, index) => (
                       <div key={index} className="mb-4">
-                        <div className="text-sm text-gray-500 mb-1">Page {page.page}</div>
+                        <div className="flex justify-between items-center mb-2">
+                          <div className="text-sm text-gray-500">Page {page.page}</div>
+                          <button
+                            onClick={() => handleSummarize(index)}
+                            disabled={summarizing}
+                            className="btn-secondary btn-sm"
+                          >
+                            {summarizing && summary?.pageIndex === index ? (
+                              <Loader className="h-4 w-4 animate-spin" />
+                            ) : (
+                              'Summarize'
+                            )}
+                          </button>
+                        </div>
                         <p className="whitespace-pre-wrap">{page.text}</p>
                       </div>
                     ))}

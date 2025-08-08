@@ -12,17 +12,12 @@ from app.services.image_service import ImageService
 from app.core.database import get_collection
 from app.api.auth import get_current_user
 
-router = APIRouter(prefix="/image", tags=["Image Processing"])
+router = APIRouter(tags=["Image Processing"])
 logger = logging.getLogger(__name__)
 
 # Initialize image service with error handling
-try:
-    image_service = ImageService()
-    IMAGE_SERVICE_AVAILABLE = True
-except Exception as e:
-    logger.error(f"Failed to initialize ImageService: {e}")
-    image_service = None
-    IMAGE_SERVICE_AVAILABLE = False
+image_service = ImageService()
+IMAGE_SERVICE_AVAILABLE = True
 
 @router.post("/process", response_model=ImageProcessResponse)
 async def process_image(

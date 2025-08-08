@@ -25,6 +25,19 @@ api.interceptors.request.use(
 );
 
 export const voiceService = {
+  // Process voice text to notes
+  processVoiceToNotes: async (speechText) => {
+    try {
+      const response = await api.post('/api/voice/process-to-notes', {
+        speech_text: speechText
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Process voice to notes error:', error);
+      throw error;
+    }
+  },
+
   // Transcribe audio file
   transcribeAudioFile: async (file) => {
     try {
@@ -96,6 +109,26 @@ export const voiceService = {
       return response.data;
     } catch (error) {
       console.error('Get voice stats error:', error);
+      throw error;
+    }
+  },
+
+  // Analyze voice emotion
+  analyzeEmotion: async (file) => {
+    try {
+      const response = await api.post('/api/voice/analyze-emotion', file, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Voice emotion analysis error:', error);
+      if (error.response?.data?.error) {
+        throw new Error(error.response.data.error);
+      } else if (error.response?.status === 500) {
+        throw new Error('Server error: Unable to analyze voice emotion');
+      }
       throw error;
     }
   },

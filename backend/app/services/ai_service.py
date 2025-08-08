@@ -484,5 +484,87 @@ class AIService:
                 "error": str(e)
             }
 
+    async def process_voice_to_notes(self, speech_text: str) -> Dict[str, Any]:
+        """Process voice/speech text and convert to clean notes."""
+        try:
+            if not speech_text or not speech_text.strip():
+                raise ValueError("Speech text cannot be empty")
+
+            prompt = f"""
+            Clean and process the following speech text, then create bullet-point notes from it.
+            
+            Speech text:
+            {speech_text}
+            
+            Please provide the result in the following JSON format:
+            {{
+                "cleaned_text": "The cleaned and corrected version of the speech text",
+                "notes": [
+                    "First bullet point note",
+                    "Second bullet point note",
+                    "Third bullet point note"
+                ]
+            }}
+            
+            Requirements:
+            1. Clean up any speech-to-text errors, filler words, and repetitions
+            2. Make the cleaned text readable and grammatically correct
+            3. Create 3-5 concise bullet-point notes from the content
+            4. Keep notes factual and easy to read
+            5. No markdown formatting in the response
+            
+            Respond only with the JSON, no additional text.
+            """
+            
+            response = self.model.generate_content(prompt)
+            response_text = response.text.strip()
+            
+            try:
+                # Handle possible markdown code blocks in response
+                if response_text.startswith('```json'):
+                    response_text = response_text[7:-3]
+                elif response_text.startswith('```'):
+                    response_text = response_text[3:-3]
+                
+                response_text = response_text.strip()
+                result = json.loads(response_text)
+                
+                # Validate required fields
+                required_fields = ["cleaned_text", "notes"]
+                for field in required_fields:
+                    if field not in result:
+                        raise ValueError(f"Missing required field: {field}")
+                    
+                    if field == "cleaned_text":
+                        if not isinstance(result[field], str) or not result[field].strip():
+                            raise ValueError("cleaned_text must be a non-empty string")
+                    elif field == "notes":
+                        if not isinstance(result[field], list) or not result[field]:
+                            raise ValueError("notes must be a non-empty array")
+                        if not all(isinstance(item, str) for item in result[field]):
+                            raise ValueError("All notes must be strings")
+                
+                return {
+                    "success": True,
+                    "data": result
+                }
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse AI response: {response_text}")
+                raise ValueError(f"Invalid JSON format in AI response: {str(e)}")
+                
+        except ValueError as e:
+            logger.error(f"Validation error in process_voice_to_notes: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+        except Exception as e:
+            logger.error(f"Error processing voice to notes: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
 # Create a singleton instance
 ai_service = AIService()

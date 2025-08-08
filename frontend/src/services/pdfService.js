@@ -82,4 +82,18 @@ export const pdfService = {
       throw error;
     }
   },
+
+  // Summarize text
+  summarizeText: async (text, maxLength = 500) => {
+    try {
+      const response = await api.post('/api/notes/summarize', {
+        text,
+        max_length: maxLength
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Summarize text error:', error);
+      throw error;
+    }
+  },
 };

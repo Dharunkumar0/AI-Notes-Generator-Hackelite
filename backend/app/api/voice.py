@@ -10,8 +10,24 @@ from datetime import datetime
 from app.api.auth import get_current_user
 from app.models.user import UserResponse
 from app.models.history import HistoryCreate
+from app.models.voice import EmotionAnalysisResponse
 from app.core.database import get_collection
 from app.services.voice_service import voice_service
+from app.services.emotion_analysis_service import analyze_voice_emotion
+from app.core.config import settings
+import logging
+import time
+import os
+import json
+from datetime import datetime
+
+from app.api.auth import get_current_user
+from app.models.user import UserResponse
+from app.models.history import HistoryCreate
+from app.models.voice import EmotionAnalysisResponse
+from app.core.database import get_collection
+from app.services.voice_service import voice_service
+from app.services.emotion_analysis_service import analyze_voice_emotion
 from app.core.config import settings
 
 # Configure logging

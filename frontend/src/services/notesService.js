@@ -38,6 +38,19 @@ api.interceptors.response.use(
 
 // Notes service implementation
 export const notesService = {
+  // Generate comprehensive notes
+  generateNotes: async (text) => {
+    try {
+      const response = await api.post('/api/notes/generate', {
+        text
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Generate notes error:', error);
+      throw error;
+    }
+  },
+
   // Summarize text
   summarize: async (text, maxLength = 500) => {
     try {

@@ -186,12 +186,21 @@ const Notes = () => {
                       <button
                         onClick={() => copyToClipboard(result.summary)}
                         className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        title="Copy to clipboard"
                       >
                         <Copy className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => downloadAsText(result.summary, 'summary.txt')}
+                        onClick={() => {
+                          const content = `Summary\n${result.summary}\n\n${
+                            result.key_points?.length
+                              ? `Key Points:\n${result.key_points.map(p => `• ${p}`).join('\n')}`
+                              : ''
+                          }`;
+                          downloadAsText(content, 'notes-summary.txt');
+                        }}
                         className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        title="Download as text"
                       >
                         <Download className="h-4 w-4" />
                       </button>

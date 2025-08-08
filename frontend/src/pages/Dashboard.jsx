@@ -12,7 +12,6 @@ import {
   TrendingUp, 
   Clock,
   Activity,
-  Zap,
   Sparkles,
   ArrowRight,
   Star,
@@ -39,6 +38,7 @@ const Dashboard = () => {
       borderColor: 'border-blue-200 dark:border-blue-800',
       iconColor: 'text-blue-600 dark:text-blue-400'
     },
+    
     {
       name: 'Voice to Text',
       description: 'Convert speech to text with high accuracy',
@@ -49,6 +49,7 @@ const Dashboard = () => {
       borderColor: 'border-emerald-200 dark:border-emerald-800',
       iconColor: 'text-emerald-600 dark:text-emerald-400'
     },
+
     {
       name: 'PDF Processor',
       description: 'Extract and analyze content from PDF documents',
@@ -59,6 +60,7 @@ const Dashboard = () => {
       borderColor: 'border-purple-200 dark:border-purple-800',
       iconColor: 'text-purple-600 dark:text-purple-400'
     },
+
     {
       name: 'Image OCR',
       description: 'Extract text from images and create summaries',
@@ -69,6 +71,7 @@ const Dashboard = () => {
       borderColor: 'border-indigo-200 dark:border-indigo-800',
       iconColor: 'text-indigo-600 dark:text-indigo-400'
     },
+
     {
       name: 'Quiz Generator',
       description: 'Create interactive quizzes from study materials',
@@ -79,6 +82,7 @@ const Dashboard = () => {
       borderColor: 'border-orange-200 dark:border-orange-800',
       iconColor: 'text-orange-600 dark:text-orange-400'
     },
+
     {
       name: 'Mind Map Creator',
       description: 'Visualize concepts with AI-powered mind maps',
@@ -89,6 +93,7 @@ const Dashboard = () => {
       borderColor: 'border-pink-200 dark:border-pink-800',
       iconColor: 'text-pink-600 dark:text-pink-400'
     },
+
     {
       name: 'ELI5 Simplifier',
       description: 'Simplify complex topics for easy understanding',
@@ -108,7 +113,6 @@ const Dashboard = () => {
         setError(null);
         const data = await historyService.getSummary(30);
         console.log('Dashboard stats:', data);
-        console.log('Total time saved:', data?.processing_stats?.total_processing_time);
         setStats(data);
       } catch (error) {
         console.error('Failed to fetch dashboard stats:', error);
@@ -138,7 +142,6 @@ const Dashboard = () => {
   const totalActivities = stats?.total_items || 0;
   const successRate = stats?.processing_stats?.success_rate || 0;
   const avgProcessing = stats?.processing_stats?.average_processing_time || 0;
-  const totalTimeSaved = stats?.processing_stats?.total_processing_time || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -254,38 +257,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-gray-700 hover:-translate-y-1">
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-purple-600/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl">
-                  <Zap className="h-6 w-6 text-white" />
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {loading ? (
-                      <div className="animate-pulse bg-gray-300 dark:bg-gray-600 h-8 w-16 rounded"></div>
-                    ) : (() => {
-                      if (!totalTimeSaved || totalTimeSaved === 0) {
-                        return '0s';
-                      } else if (totalTimeSaved < 60) {
-                        return `${Math.round(totalTimeSaved)}s`;
-                      } else if (totalTimeSaved < 3600) {
-                        return `${Math.round(totalTimeSaved / 60)}m`;
-                      } else {
-                        const hours = Math.floor(totalTimeSaved / 3600);
-                        const minutes = Math.round((totalTimeSaved % 3600) / 60);
-                        return `${hours}h ${minutes}m`;
-                      }
-                    })()}
-                  </div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Saved</div>
-                </div>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Time Saved</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Efficiency gains</p>
-            </div>
-          </div>
+
         </div>
 
         {/* Feature Grid */}
@@ -334,7 +306,7 @@ const Dashboard = () => {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-8">
+        { <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-8">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Recent Activity</h2>
@@ -409,7 +381,7 @@ const Dashboard = () => {
               </Link>
             </div>
           )}
-        </div>
+        </div> }
       </div>
     </div>
   );
