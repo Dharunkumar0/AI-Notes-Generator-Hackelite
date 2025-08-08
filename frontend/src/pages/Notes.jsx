@@ -8,6 +8,8 @@ const Notes = () => {
   const [maxLength, setMaxLength] = useState(500);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [summarizationType, setSummarizationType] = useState('abstractive');
+  const [summaryMode, setSummaryMode] = useState('narrative');
 
   const handleSummarize = async () => {
     if (!text.trim()) {
@@ -22,7 +24,7 @@ const Notes = () => {
 
     try {
       setLoading(true);
-      const response = await notesService.summarize(text, maxLength);
+      const response = await notesService.summarize(text, maxLength, summarizationType, summaryMode);
       setResult(response);
       toast.success('Text summarized successfully!');
     } catch (error) {
@@ -99,19 +101,51 @@ const Notes = () => {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Input Text</h2>
             
             <div className="space-y-4">
-              <div>
-                <label htmlFor="maxLength" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Maximum Summary Length (words)
-                </label>
-                <input
-                  type="number"
-                  id="maxLength"
-                  min="100"
-                  max="1000"
-                  value={maxLength}
-                  onChange={(e) => setMaxLength(Number(e.target.value))}
-                  className="input-field w-32"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="maxLength" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Maximum Summary Length (words)
+                  </label>
+                  <input
+                    type="number"
+                    id="maxLength"
+                    min="100"
+                    max="1000"
+                    value={maxLength}
+                    onChange={(e) => setMaxLength(Number(e.target.value))}
+                    className="input-field w-32"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="summarizationType" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Summarization Method
+                  </label>
+                  <select
+                    id="summarizationType"
+                    value={summarizationType}
+                    onChange={(e) => setSummarizationType(e.target.value)}
+                    className="input-field w-full"
+                  >
+                    <option value="abstractive">Abstractive (New Sentences)</option>
+                    <option value="extractive">Extractive (Original Sentences)</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label htmlFor="summaryMode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Summary Style
+                  </label>
+                  <select
+                    id="summaryMode"
+                    value={summaryMode}
+                    onChange={(e) => setSummaryMode(e.target.value)}
+                    className="input-field w-full"
+                  >
+                    <option value="narrative">Narrative (Flowing Story-like)</option>
+                    <option value="beginner">Beginner-Friendly (Simple Language)</option>
+                    <option value="technical">Technical/Expert (Advanced Terms)</option>
+                    <option value="bullet">Bullet Points (Concise List)</option>
+                  </select>
+                </div>
               </div>
 
               <div>

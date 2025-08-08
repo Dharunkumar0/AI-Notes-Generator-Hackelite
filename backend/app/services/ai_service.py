@@ -25,22 +25,58 @@ class AIService:
             logger.error(f"Error initializing AI Service: {str(e)}")
             self.model = None
 
-    async def summarize_notes(self, text: str, max_length: int = 500) -> Dict[str, Any]:
-        """Summarize long text notes using AI."""
+    async def summarize_notes(
+        self, 
+        text: str, 
+        max_length: int = 500,
+        summarization_type: str = 'abstractive',
+        summary_mode: str = 'narrative'
+    ) -> Dict[str, Any]:
+        """
+        Summarize text using AI with specified summarization type and style.
+        
+        Args:
+            text: The input text to summarize
+            max_length: Maximum length of the summary in words
+            summarization_type: 'abstractive' or 'extractive'
+            summary_mode: 'narrative', 'beginner', 'technical', or 'bullet'
+        """
         try:
+            # Define style instructions for each mode
+            style_instructions = {
+                'narrative': "Write the summary in a flowing, story-like manner that's engaging and easy to follow.",
+                'beginner': "Use simple, clear language suitable for beginners. Avoid technical terms and explain concepts in basic terms.",
+                'technical': "Use precise technical language and domain-specific terminology. Maintain a professional and academic tone.",
+                'bullet': "Present the summary as a structured list of key points, using bullet points for clarity."
+            }.get(summary_mode, "Write in a clear, concise manner.")
+
+            # Define method instructions for summarization type
+            method_instructions = {
+                'extractive': "Create the summary by selecting and combining the most important sentences from the original text. Maintain the original wording where possible.",
+                'abstractive': "Generate a new summary that captures the meaning of the text in your own words. Rephrase and restructure the content while maintaining accuracy."
+            }.get(summarization_type, "Summarize the text appropriately.")
+
+            # Add format-specific instructions
+            format_instructions = """
+            Present the summary in the following JSON format:
+            {
+                "summary": "the summarized text",
+                "key_points": ["point 1", "point 2", "point 3"],
+                "word_count": number_of_words_in_summary
+            }
+            """
+
             prompt = f"""
-            Please summarize the following text in a clear, concise manner. 
-            The summary should be no more than {max_length} words and should capture the key points and main ideas.
+            Please summarize the following text according to these specifications:
+            
+            Style: {style_instructions}
+            Method: {method_instructions}
+            Maximum Length: {max_length} words
             
             Text to summarize:
             {text}
             
-            Please provide the summary in the following JSON format:
-            {{
-                "summary": "the summarized text",
-                "key_points": ["point 1", "point 2", "point 3"],
-                "word_count": number_of_words_in_summary
-            }}
+            {format_instructions}
             
             Respond only with the JSON, no additional text.
             """

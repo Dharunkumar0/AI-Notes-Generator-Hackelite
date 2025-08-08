@@ -51,12 +51,14 @@ export const notesService = {
     }
   },
 
-  // Summarize text
-  summarize: async (text, maxLength = 500) => {
+  // Summarize text with various options
+  summarize: async (text, maxLength = 500, summarizationType = 'abstractive', summaryMode = 'narrative') => {
     try {
       const response = await api.post('/api/notes/summarize', {
         text,
-        max_length: maxLength
+        max_length: maxLength,
+        summarization_type: summarizationType,
+        summary_mode: summaryMode
       });
       return response.data;
     } catch (error) {

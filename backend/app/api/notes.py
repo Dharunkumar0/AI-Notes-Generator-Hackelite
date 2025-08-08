@@ -17,6 +17,8 @@ router = APIRouter()
 class NotesSummarizeRequest(BaseModel):
     text: str
     max_length: Optional[int] = 500
+    summarization_type: Optional[str] = 'abstractive'
+    summary_mode: Optional[str] = 'narrative'
 
 class NotesSummarizeResponse(BaseModel):
     summary: str
@@ -55,8 +57,27 @@ async def summarize_notes(
                 detail="Text too long. Maximum 10,000 characters allowed."
             )
         
+        # Validate summarization type
+        if request.summarization_type not in ['abstractive', 'extractive']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid summarization type. Must be 'abstractive' or 'extractive'"
+            )
+            
+        # Validate summary mode
+        if request.summary_mode not in ['narrative', 'beginner', 'technical', 'bullet']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid summary mode. Must be 'narrative', 'beginner', 'technical', or 'bullet'"
+            )
+        
         # Process with AI
-        result = await ai_service.summarize_notes(request.text, request.max_length)
+        result = await ai_service.summarize_notes(
+            text=request.text,
+            max_length=request.max_length,
+            summarization_type=request.summarization_type,
+            summary_mode=request.summary_mode
+        )
         
         if not result["success"]:
             raise HTTPException(
