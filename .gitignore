@@ -1,0 +1,12 @@
+backend/.env
+frontend/.env
+node_modules/
+backend/venv/
+frontend.zip
+src.zip
+
+__pycache__
+
+venv
+backend.zip
+frontend (2).zip
