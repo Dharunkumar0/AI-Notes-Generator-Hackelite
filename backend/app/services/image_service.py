@@ -1,7 +1,8 @@
 import os
 import logging
 from typing import Dict, Any, Optional
-import google.generativeai as genai
+import httpx
+import base64
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -18,9 +19,20 @@ except ImportError:
 
 class ImageService:
     def __init__(self):
-        # Configure Gemini
-        genai.configure(api_key=settings.gemini_api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        # Configure Ollama API endpoint
+        self.api_base = settings.ollama_url
+        self.model_name = settings.ollama_model  # Using the configured model
+        
+        # Configure timeouts and limits
+        self.timeout = httpx.Timeout(
+            connect=5.0,    # connection timeout
+            read=600.0,     # read timeout (10 minutes for large images)
+            write=60.0,     # write timeout
+            pool=60.0       # pool timeout
+        )
+        
+        # Configure chunking for large texts
+        self.max_chunk_size = 4000  # Maximum characters per chunk
         
         # Check Tesseract availability
         self.tesseract_available = False
@@ -99,59 +111,129 @@ class ImageService:
             raise Exception(f"Failed to extract text from image: {str(e)}")
     
     async def summarize_text(self, text: str) -> Dict[str, Any]:
-        """Summarize text using Gemini 2.5 Pro."""
+        """Summarize text using Ollama."""
         try:
-            prompt = f"""
-            Please provide a comprehensive summary of the following text. 
-            Include key points, main ideas, and important details.
+            # Split long text into chunks if needed
+            if len(text) > self.max_chunk_size:
+                chunks = [text[i:i + self.max_chunk_size] 
+                         for i in range(0, len(text), self.max_chunk_size)]
+                logger.info(f"Splitting text into {len(chunks)} chunks")
+            else:
+                chunks = [text]
             
-            Text to summarize:
-            {text}
+            all_summaries = []
             
-            Please structure your response as:
-            1. Main Summary (2-3 sentences)
-            2. Key Points (bullet points)
-            3. Important Details
-            """
+            for i, chunk in enumerate(chunks):
+                prompt = f"""
+                {'Continuing summary - Part ' + str(i+1) if len(chunks) > 1 else 'Please'} provide a comprehensive summary of the following text. 
+                Include key points, main ideas, and important details.
+                
+                Text to summarize:
+                {chunk}
+                
+                Please structure your response as:
+                1. Main Summary (2-3 sentences)
+                2. Key Points (bullet points)
+                3. Important Details
+                
+                Keep your response focused and concise.
+                """
+                
+                try:
+                    for attempt in range(3):  # Try up to 3 times
+                        try:
+                            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                                response = await client.post(
+                                    f"{self.api_base}/api/generate",
+                                    json={
+                                        "model": self.model_name,
+                                        "prompt": prompt,
+                                        "stream": False,
+                                        "options": {
+                                            "temperature": 0.7,
+                                            "top_p": 0.9,
+                                            "num_predict": 2048
+                                        }
+                                    }
+                                )
+                                
+                                if response.status_code != 200:
+                                    raise Exception(f"Ollama API request failed: {response.text}")
+                                    
+                                response_data = response.json()
+                                response_text = response_data.get("response", "").strip()
+                                
+                                if not response_text:
+                                    raise ValueError("Empty response from Ollama")
+                                    
+                                all_summaries.append(response_text)
+                                break  # Success, exit retry loop
+                                
+                        except (httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+                            if attempt == 2:  # Last attempt
+                                raise Exception(f"Timeout error after 3 attempts: {str(e)}")
+                            logger.warning(f"Attempt {attempt + 1} failed with timeout, retrying...")
+                            await httpx.AsyncClient.aclose()  # Close any hanging connections
+                            continue
+                            
+                except Exception as chunk_error:
+                    logger.error(f"Error processing chunk {i+1}: {chunk_error}")
+                    raise
             
-            response = self.model.generate_content(prompt)
+            # Combine all summaries
+            combined_text = "\n\n".join(all_summaries)
             
-            if not response.text:
-                raise ValueError("No summary generated")
-            
-            # Parse the response into structured format
-            summary_parts = response.text.split('\n')
+            # Parse all responses into structured format
+            all_parts = combined_text.split('\n')
             
             summary_data = {
-                "full_summary": response.text,
+                "full_summary": combined_text,
                 "main_summary": "",
                 "key_points": [],
                 "important_details": []
             }
             
             current_section = "main_summary"
-            for line in summary_parts:
+            for line in all_parts:
                 line = line.strip()
                 if not line:
                     continue
                     
-                if "1. Main Summary" in line or "Main Summary" in line:
+                # Handle section headers with or without numbers
+                lower_line = line.lower()
+                if any(x in lower_line for x in ["main summary", "summary:", "overview:"]):
                     current_section = "main_summary"
-                elif "2. Key Points" in line or "Key Points" in line:
+                    continue
+                elif any(x in lower_line for x in ["key points", "points:", "key findings:"]):
                     current_section = "key_points"
-                elif "3. Important Details" in line or "Important Details" in line:
+                    continue
+                elif any(x in lower_line for x in ["important details", "details:", "additional info"]):
                     current_section = "important_details"
-                elif line.startswith("•") or line.startswith("-"):
+                    continue
+                    
+                # Handle bullet points and numbered lists
+                if line.startswith(('•', '-', '*', '1.', '2.', '3.', '4.', '5.')):
+                    line = line.lstrip('•-*123456789. ')
                     if current_section == "key_points":
-                        summary_data["key_points"].append(line[1:].strip())
+                        if line not in summary_data["key_points"]:  # Avoid duplicates
+                            summary_data["key_points"].append(line)
+                    elif current_section == "important_details":
+                        if line not in summary_data["important_details"]:  # Avoid duplicates
+                            summary_data["important_details"].append(line)
                 else:
                     if current_section == "main_summary":
                         summary_data["main_summary"] += line + " "
-                    elif current_section == "important_details":
-                        summary_data["important_details"].append(line)
             
             # Clean up main summary
             summary_data["main_summary"] = summary_data["main_summary"].strip()
+            
+            # Ensure we have content in each section
+            if not summary_data["main_summary"]:
+                summary_data["main_summary"] = "Summary could not be generated."
+            if not summary_data["key_points"]:
+                summary_data["key_points"] = ["No key points identified."]
+            if not summary_data["important_details"]:
+                summary_data["important_details"] = ["No additional details extracted."]
             
             logger.info(f"Successfully generated summary with {len(summary_data['key_points'])} key points")
             return summary_data

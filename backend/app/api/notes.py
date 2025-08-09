@@ -71,21 +71,49 @@ async def summarize_notes(
                 detail="Invalid summary mode. Must be 'narrative', 'beginner', 'technical', or 'bullet'"
             )
         
-        # Process with AI
-        result = await ai_service.summarize_notes(
-            text=request.text,
-            max_length=request.max_length,
-            summarization_type=request.summarization_type,
-            summary_mode=request.summary_mode
-        )
-        
-        if not result["success"]:
+        try:
+            # Process with AI
+            result = await ai_service.summarize_notes(
+                text=request.text,
+                max_length=request.max_length,
+                summarization_type=request.summarization_type,
+                summary_mode=request.summary_mode
+            )
+            
+            if not result or not isinstance(result, dict):
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Invalid response from AI service"
+                )
+            
+            if not result.get("success", False):
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"AI processing failed: {result.get('error', 'Unknown error')}"
+                )
+            
+            summary_data = result.get("data")
+            if not summary_data:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="No summary data in AI response"
+                )
+            
+            processing_time = time.time() - start_time
+            
+            # Create response object with defaults for missing fields
+            response = NotesSummarizeResponse(
+                summary=summary_data.get("summary", ""),
+                key_points=summary_data.get("key_points", []),
+                word_count=summary_data.get("word_count", 0),
+                processing_time=processing_time
+            )
+        except Exception as e:
+            logger.error(f"Error summarizing notes: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"AI processing failed: {result['error']}"
+                detail=str(e)
             )
-        
-        processing_time = time.time() - start_time
         
         # Save to history
         history_data = HistoryCreate(
@@ -95,7 +123,7 @@ async def summarize_notes(
                 "text": request.text[:1000],  # Store first 1000 chars
                 "max_length": request.max_length
             },
-            output_data=result["data"],
+            output_data=summary_data,
             processing_time=processing_time
         )
         

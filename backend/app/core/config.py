@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     api_v1_str: str = "/api/v1"
     project_name: str = "AI-Powered Notes Summarizer"
     
+    model_config = {
+        "extra": "ignore"  # This will ignore any extra fields in environment variables
+    }
+    
     # Security
     secret_key: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     algorithm: str = "HS256"
@@ -24,8 +28,9 @@ class Settings(BaseSettings):
     firebase_auth_domain: str = os.getenv("FIREBASE_AUTH_DOMAIN", "")
     firebase_project_id: str = os.getenv("FIREBASE_PROJECT_ID", "")
     
-    # Google Gemini API
-    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+    # Ollama Configuration
+    ollama_url: str = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    ollama_model: str = os.getenv("OLLAMA_MODEL", "mistral")
     
     # File Upload
     upload_dir: str = "uploads"
@@ -34,7 +39,9 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list = ["http://localhost:3000", "http://127.0.0.1:3000"]
     
-    class Config:
-        env_file = ".env"
+    model_config = {
+        "extra": "ignore",  # This will ignore any extra fields in environment variables
+        "env_file": ".env"
+    }
 
 settings = Settings() 

@@ -2,18 +2,18 @@ import scholarly
 from typing import List, Dict, Any
 import logging
 import json
+import httpx
 from datetime import datetime
 from app.core.config import settings
-import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 
 class ResearchService:
     def __init__(self):
         try:
-            # Configure Gemini API
-            genai.configure(api_key=settings.gemini_api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-pro')
+            # Configure Ollama API endpoint
+            self.api_base = settings.ollama_url
+            self.model_name = settings.ollama_model
             logger.debug("Research Service initialized successfully")
         except Exception as e:
             logger.error(f"Error initializing Research Service: {str(e)}")
@@ -182,8 +182,21 @@ class ResearchService:
             Respond only with the JSON, no additional text.
             """
 
-            response = self.model.generate_content(prompt)
-            response_text = response.text.strip()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.api_base}/api/generate",
+                    json={
+                        "model": self.model_name,
+                        "prompt": prompt,
+                        "stream": False
+                    }
+                )
+                
+                if response.status_code != 200:
+                    raise Exception(f"Ollama API request failed: {response.text}")
+                    
+                response_data = response.json()
+                response_text = response_data["response"].strip()
             
             # Handle possible formatting issues
             if response_text.startswith('```json'):

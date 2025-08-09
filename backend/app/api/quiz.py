@@ -10,7 +10,6 @@ from app.models.user import UserResponse
 from app.models.history import HistoryCreate
 from app.core.database import get_collection
 from app.services.ai_service import ai_service
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -57,14 +56,6 @@ async def generate_quiz(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Number of questions must be between 1 and 20"
-            )
-        
-        # Check if Gemini API key is configured
-        if not settings.gemini_api_key:
-            logger.error("Gemini API key not configured")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="AI service not properly configured. Please check GEMINI_API_KEY in environment variables."
             )
         
         # Process with AI

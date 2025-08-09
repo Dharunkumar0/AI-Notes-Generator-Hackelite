@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 import json
 import asyncio
+import httpx
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -520,11 +521,9 @@ class VoiceService:
     async def analyze_audio_content(self, transcription: str) -> Dict[str, Any]:
         """Analyze transcribed text for key points and sentiment."""
         try:
-            import google.generativeai as genai
-            from app.core.config import settings
+            from app.services.ai_service import AIService
             
-            genai.configure(api_key=settings.gemini_api_key)
-            model = genai.GenerativeModel('gemini-1.5-pro')
+            ai_service = AIService()
             
             prompt = f"""
             Analyze the following transcribed speech text and provide a structured analysis.
@@ -543,23 +542,69 @@ class VoiceService:
                 "clarity_score": 0-10,
                 "suggested_improvements": ["suggestion 1", "suggestion 2"]
             }}
+            
+            Return only the JSON object, no additional text.
             """
             
-            response = model.generate_content(prompt)
-            response_text = response.text.strip()
-            
-            # Process the response
-            if response_text.startswith('```json'):
-                response_text = response_text[7:-3]
-            elif response_text.startswith('```'):
-                response_text = response_text[3:-3]
-            
-            result = json.loads(response_text.strip())
-            
-            return {
-                "success": True,
-                "data": result
-            }
+            async with httpx.AsyncClient(timeout=ai_service.timeout) as client:
+                response = await client.post(
+                    f"{ai_service.api_base}/api/generate",
+                    json={
+                        "model": ai_service.model_name,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.7,
+                            "top_p": 0.9,
+                            "num_predict": 2048
+                        }
+                    }
+                )
+                
+                if response.status_code != 200:
+                    raise Exception(f"Ollama API request failed: {response.text}")
+                    
+                response_data = response.json()
+                response_text = response_data.get("response", "").strip()
+                
+                if not response_text:
+                    raise ValueError("Empty response from Ollama")
+                
+                # Clean response
+                if response_text.startswith('```json'):
+                    response_text = response_text[7:-3]  # Remove ```json and ``` markers
+                elif response_text.startswith('```'):
+                    response_text = response_text[3:-3]  # Remove ``` markers
+                
+                result = json.loads(response_text.strip())
+                
+                # Validate response structure
+                required_fields = ["summary", "key_points", "topics_discussed", "sentiment", 
+                                "sentiment_reasons", "clarity_score", "suggested_improvements"]
+                for field in required_fields:
+                    if field not in result:
+                        raise ValueError(f"Missing required field in response: {field}")
+                
+                # Validate array fields
+                array_fields = ["key_points", "topics_discussed", "sentiment_reasons", "suggested_improvements"]
+                for field in array_fields:
+                    if not isinstance(result[field], list):
+                        result[field] = []  # Default to empty list if invalid
+                
+                # Validate clarity score
+                try:
+                    result["clarity_score"] = int(result["clarity_score"])
+                    if result["clarity_score"] < 0:
+                        result["clarity_score"] = 0
+                    elif result["clarity_score"] > 10:
+                        result["clarity_score"] = 10
+                except (ValueError, TypeError):
+                    result["clarity_score"] = 5  # Default score
+                
+                return {
+                    "success": True,
+                    "data": result
+                }
             
         except Exception as e:
             logger.error(f"Error analyzing audio content: {e}")
@@ -571,11 +616,9 @@ class VoiceService:
     async def summarize_audio(self, transcription: str, max_length: int = 200) -> Dict[str, Any]:
         """Generate a concise summary of the transcribed audio content."""
         try:
-            import google.generativeai as genai
-            from app.core.config import settings
+            from app.services.ai_service import AIService
             
-            genai.configure(api_key=settings.gemini_api_key)
-            model = genai.GenerativeModel('gemini-1.5-pro')
+            ai_service = AIService()
             
             prompt = f"""
             Create a concise summary of this transcribed speech, highlighting the most important points.
@@ -593,23 +636,64 @@ class VoiceService:
                 "action_items": ["action 1", "action 2"] if any,
                 "context": "brief description of the context/setting"
             }}
+            
+            Return only the JSON object, no additional text.
             """
             
-            response = model.generate_content(prompt)
-            response_text = response.text.strip()
-            
-            # Process the response
-            if response_text.startswith('```json'):
-                response_text = response_text[7:-3]
-            elif response_text.startswith('```'):
-                response_text = response_text[3:-3]
-            
-            result = json.loads(response_text.strip())
-            
-            return {
-                "success": True,
-                "data": result
-            }
+            async with httpx.AsyncClient(timeout=ai_service.timeout) as client:
+                response = await client.post(
+                    f"{ai_service.api_base}/api/generate",
+                    json={
+                        "model": ai_service.model_name,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.7,
+                            "top_p": 0.9,
+                            "num_predict": 2048
+                        }
+                    }
+                )
+                
+                if response.status_code != 200:
+                    raise Exception(f"Ollama API request failed: {response.text}")
+                    
+                response_data = response.json()
+                response_text = response_data.get("response", "").strip()
+                
+                if not response_text:
+                    raise ValueError("Empty response from Ollama")
+                
+                # Clean response
+                if response_text.startswith('```json'):
+                    response_text = response_text[7:-3]  # Remove ```json and ``` markers
+                elif response_text.startswith('```'):
+                    response_text = response_text[3:-3]  # Remove ``` markers
+                
+                result = json.loads(response_text.strip())
+                
+                # Validate response structure
+                required_fields = ["summary", "main_points", "word_count", "key_phrases", "action_items", "context"]
+                for field in required_fields:
+                    if field not in result:
+                        raise ValueError(f"Missing required field in response: {field}")
+                
+                # Validate array fields
+                array_fields = ["main_points", "key_phrases", "action_items"]
+                for field in array_fields:
+                    if not isinstance(result[field], list):
+                        result[field] = []  # Default to empty list if invalid
+                
+                # Validate word count
+                try:
+                    result["word_count"] = int(result["word_count"])
+                except (ValueError, TypeError):
+                    result["word_count"] = len(result["summary"].split())
+                
+                return {
+                    "success": True,
+                    "data": result
+                }
             
         except Exception as e:
             logger.error(f"Error summarizing audio content: {e}")
