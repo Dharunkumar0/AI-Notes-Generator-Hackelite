@@ -1,3 +1,20 @@
+# services:
+#   - type: web
+#     name: ai-notes-generator-hackelite
+#     env: python
+#     runtime: python-3.12.7
+#     repo: https://github.com/Dharunkumar0/AI-Notes-Generator-Hackelite
+#     branch: main
+#     buildCommand: |
+#       apt-get update
+#       apt-get install -y portaudio19-dev python3-dev gcc g++ libasound2-dev
+#       pip install --upgrade pip
+#       pip install -r requirements.txt
+#     startCommand: python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+#     plan: free
+#     autoDeploy: true
+
+
 services:
   - type: web
     name: ai-notes-generator-hackelite
@@ -6,10 +23,17 @@ services:
     repo: https://github.com/Dharunkumar0/AI-Notes-Generator-Hackelite
     branch: main
     buildCommand: |
-      apt-get update
-      apt-get install -y portaudio19-dev python3-dev gcc g++ libasound2-dev
-      pip install --upgrade pip
-      pip install -r requirements.txt
+      apt-get update && apt-get install -y \
+        portaudio19-dev \
+        python3-dev \
+        gcc \
+        g++ \
+        libasound2-dev \
+        libportaudio2 \
+        libportaudiocpp0 \
+        ffmpeg \
+        && pip install --upgrade pip \
+        && pip install -r requirements.txt
     startCommand: python -m uvicorn main:app --host 0.0.0.0 --port $PORT
     plan: free
     autoDeploy: true
