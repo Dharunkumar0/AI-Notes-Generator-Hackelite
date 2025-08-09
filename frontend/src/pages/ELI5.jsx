@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lightbulb, BookOpen, Sparkles, Loader, RefreshCw, ArrowRight } from 'lucide-react';
+import TextToSpeech from '../components/TextToSpeech';
 import { eli5Service } from '../services/eli5Service';
 
 const ELI5 = () => {
@@ -134,10 +135,13 @@ const ELI5 = () => {
 
               <div className="space-y-6">
                 <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                  <h3 className="font-semibold mb-2 flex items-center text-primary-600">
-                    <Lightbulb className="h-4 w-4 mr-2" />
-                    Simple Explanation
-                  </h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold flex items-center text-primary-600">
+                      <Lightbulb className="h-4 w-4 mr-2" />
+                      Simple Explanation
+                    </h3>
+                    <TextToSpeech text={explanation.simple_explanation} />
+                  </div>
                   <p className="text-gray-700 dark:text-gray-300">
                     {explanation.simple_explanation}
                   </p>

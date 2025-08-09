@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, Copy, Download, Sparkles, Target, Clock } from 'lucide-react';
+import TextToSpeech from '../components/TextToSpeech';
 import { notesService } from '../services/notesService';
 import toast from 'react-hot-toast';
 import DownloadPdfButton from '../components/DownloadPdfButton';
@@ -227,7 +228,12 @@ const Notes = () => {
               <div className="space-y-6">
                 {/* Summary */}
                 <div>
-                  <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-2">Summary</h3>
+                  <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-2">
+                    <div className="flex items-center justify-between">
+                      <span>Summary</span>
+                      <TextToSpeech text={result.summary} />
+                    </div>
+                  </h3>
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                     <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{result.summary}</p>
                   </div>

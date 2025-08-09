@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File
 from pydantic import BaseModel
-from typing import Optional, List, Dict, An        
+from typing import Optional, List, Dict, Any        
 import time
 import os
 import json
@@ -13,6 +13,7 @@ from app.models.voice import EmotionAnalysisResponse
 from app.core.database import get_collection
 from app.services.voice_service import voice_service
 from app.services.emotion_analysis_service import analyze_voice_emotion
+from app.services.text_to_speech_service import text_to_speech_service
 from app.core.config import settings
 import logging
 import time
@@ -484,4 +485,53 @@ async def get_voice_stats(current_user: UserResponse = Depends(get_current_user)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get statistics"
-        ) 
+        )
+
+class TextToSpeechRequest(BaseModel):
+    text: str
+    language: Optional[str] = 'en'
+
+class TextToSpeechResponse(BaseModel):
+    file_path: str
+    file_name: str
+    duration: float
+
+@router.post("/text-to-speech", response_model=TextToSpeechResponse)
+async def convert_text_to_speech(
+    request: TextToSpeechRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Convert text to speech."""
+    try:
+        # Validate input
+        if not request.text.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Text cannot be empty"
+            )
+            
+        # Convert text to speech
+        result = await text_to_speech_service.text_to_speech(
+            text=request.text,
+            language=request.language
+        )
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Text-to-speech conversion failed: {result['error']}"
+            )
+            
+        # Clean up old files
+        await text_to_speech_service.cleanup_old_files()
+        
+        return result["data"]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in text-to-speech conversion: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to convert text to speech"
+        )
