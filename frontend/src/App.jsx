@@ -15,6 +15,8 @@ import Image from './pages/Image';
 import Profile from './pages/Profile';
 import Research from './pages/Research';
 
+
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
