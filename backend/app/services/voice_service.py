@@ -134,6 +134,7 @@ class VoiceService:
     async def transcribe_audio_file(self, audio_file_path: str, original_format: str = "wav") -> Dict[str, Any]:
         """Transcribe audio file to text using Google Speech Recognition."""
         temp_wav_path = None
+        temp_converted_path = None
         try:
             # Convert to WAV if needed
             if original_format.lower() != "wav":
@@ -141,13 +142,35 @@ class VoiceService:
                 process_path = temp_wav_path
             else:
                 process_path = audio_file_path
+
+            # Ensure we're working with a file on disk
+            if not os.path.isfile(process_path):
+                raise ValueError("Audio file not found on disk")
             
             segments = []
-            with sr.AudioFile(process_path) as source:
-                # Get audio duration
-                with wave.open(process_path, 'rb') as wave_file:
-                    duration = wave_file.getnframes() / wave_file.getframerate()
-                    sample_rate = wave_file.getframerate()
+            # First convert to WAV using pydub to ensure format compatibility
+            try:
+                audio = AudioSegment.from_file(process_path)
+                if not audio.duration_seconds > 0:
+                    raise ValueError("Audio file appears to be empty")
+                
+                # Export as WAV for speech_recognition
+                temp_wav = os.path.join(os.path.dirname(process_path), "temp_converted.wav")
+                audio.export(temp_wav, format="wav")
+                process_path = temp_wav
+            except Exception as e:
+                logger.error(f"Failed to validate/convert audio file: {e}")
+                raise ValueError("Invalid audio file format or corrupted file")
+            
+            try:
+                with sr.AudioFile(process_path) as source:
+                    # Get audio duration using wave module
+                    with wave.open(process_path, 'rb') as wave_file:
+                        duration = wave_file.getnframes() / wave_file.getframerate()
+                        sample_rate = wave_file.getframerate()
+            except Exception as e:
+                logger.error(f"Failed to read audio file: {e}")
+                raise ValueError(f"Could not process audio file: {str(e)}")
                 
                 # Process in 30-second segments if longer than 60 seconds
                 if duration > 60:

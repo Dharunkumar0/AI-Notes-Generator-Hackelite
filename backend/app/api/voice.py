@@ -1,12 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-import logging
+from typing import Optional, List, Dict, An        
 import time
 import os
 import json
 from datetime import datetime
-
+ 
 from app.api.auth import get_current_user
 from app.models.user import UserResponse
 from app.models.history import HistoryCreate
@@ -101,17 +100,39 @@ async def transcribe_audio_file(
         file_size = 0
         chunk_size = 8192
         
-        # Read file in chunks to check size
-        while chunk := await file.read(chunk_size):
-            file_size += len(chunk)
-            if file_size > MAX_SIZE:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="File size exceeds 10MB limit"
-                )
-            
-        # Reset file position for later reading
-        await file.seek(0)
+        # Save file to temp location first
+        timestamp = int(time.time() * 1000)
+        safe_filename = "".join(c for c in file.filename if c.isalnum() or c in "._- ")
+        temp_file_path = os.path.join(
+            os.getcwd(), 
+            "uploads", 
+            "temp", 
+            f"upload_{timestamp}_{safe_filename}"
+        )
+        
+        # Create temporary directories if they don't exist
+        for dir_path in [
+            os.path.join(os.getcwd(), "uploads"),
+            os.path.join(os.getcwd(), "uploads", "temp"),
+            os.path.join(os.getcwd(), "uploads", "audio")
+        ]:
+            os.makedirs(dir_path, exist_ok=True)
+
+        logger.debug(f"Saving uploaded file to: {temp_file_path}")
+        
+        # Save uploaded file while checking size
+        file_size = 0
+        with open(temp_file_path, "wb") as temp_file:
+            while chunk := await file.read(chunk_size):
+                file_size += len(chunk)
+                if file_size > MAX_SIZE:
+                    # Clean up the partial file
+                    os.unlink(temp_file_path)
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="File size exceeds 10MB limit"
+                    )
+                temp_file.write(chunk)
         
         # Get file extension
         file_extension = file.filename.split('.')[-1].lower()

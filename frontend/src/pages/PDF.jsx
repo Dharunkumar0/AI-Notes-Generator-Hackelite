@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { File, Upload, FileText, Loader, Info, X, BookOpen } from 'lucide-react';
+import { File, Upload, FileText, Loader, Info, X, BookOpen, Copy } from 'lucide-react';
 import { pdfService } from '../services/pdfService';
+import toast from 'react-hot-toast';
+import DownloadPdfButton from '../components/DownloadPdfButton';
 
 const PDF = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -137,12 +139,54 @@ const PDF = () => {
             <div className="text-left">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-semibold">Results</h3>
-                <button
-                  onClick={clearResults}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <div className="flex items-center space-x-4">
+                  <DownloadPdfButton
+                    className="btn-secondary flex items-center space-x-2"
+                    filename="pdf-extraction.pdf"
+                    title="PDF Analysis Results"
+                    getHtml={() => `
+                      <div class="container">
+                        <h1>PDF Analysis Results</h1>
+                        <div class="meta">
+                          ${pdfInfo ? `
+                            <p>Title: ${pdfInfo.title || 'N/A'}</p>
+                            <p>Author: ${pdfInfo.author || 'N/A'}</p>
+                            <p>Pages: ${pdfInfo.pages}</p>
+                            <p>Created: ${pdfInfo.created || 'N/A'}</p>
+                          ` : ''}
+                        </div>
+                        ${extractedText.pages.map((page, index) => `
+                          <div class="section">
+                            <h2>Page ${page.page}</h2>
+                            <p>${page.text}</p>
+                            ${summary && summary.pageIndex === index ? `
+                              <div class="summary">
+                                <h3>Summary</h3>
+                                <p>${summary.summary}</p>
+                                <div class="meta">
+                                  Word count: ${summary.word_count}
+                                  Processing time: ${summary.processing_time.toFixed(2)}s
+                                </div>
+                              </div>
+                            ` : ''}
+                          </div>
+                        `).join('')}
+                        <div class="meta">
+                          Generated on ${new Date().toLocaleString()}
+                        </div>
+                      </div>
+                    `}
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span>Export PDF</span>
+                  </DownloadPdfButton>
+                  <button
+                    onClick={clearResults}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
 
               {pdfInfo && (

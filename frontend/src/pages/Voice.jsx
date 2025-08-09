@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Upload, FileText } from 'lucide-react';
+import { Mic, Upload, FileText, Copy, Download } from 'lucide-react';
 import { voiceService } from '../services/voiceService';
 import { notesService } from '../services/notesService';
 import VoiceEmotionAnalysis from '../components/VoiceEmotionAnalysis';
 import VoiceRecorder from '../components/VoiceRecorder';
+import DownloadPdfButton from '../components/DownloadPdfButton';
+import toast from 'react-hot-toast';
 
 const Voice = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -186,6 +188,46 @@ const Voice = () => {
                   <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-left">
                     <h4 className="font-medium mb-2">Summary</h4>
                     {summary}
+                    <div className="mt-2 flex justify-end space-x-2">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(summary);
+                          toast.success('Summary copied to clipboard!');
+                        }}
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        title="Copy summary"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      <DownloadPdfButton
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        filename="voice-transcription.pdf"
+                        title="Voice Transcription"
+                        getHtml={() => `
+                          <div class="container">
+                            <h1>Voice Transcription</h1>
+                            <div class="meta">
+                              <p>Duration: ${duration?.toFixed(2)}s</p>
+                              <p>Confidence: ${(confidence * 100).toFixed(1)}%</p>
+                              <p>Word Count: ${word_count}</p>
+                            </div>
+                            <div class="section">
+                              <h2>Transcription</h2>
+                              <p>${transcription}</p>
+                            </div>
+                            ${summary ? `
+                              <div class="section">
+                                <h2>Summary</h2>
+                                <p>${summary}</p>
+                              </div>
+                            ` : ''}
+                            <div class="meta">
+                              Generated on ${new Date().toLocaleString()}
+                            </div>
+                          </div>
+                        `}
+                      />
+                    </div>
                   </div>
                 )}
                 

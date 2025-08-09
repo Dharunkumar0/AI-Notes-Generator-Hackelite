@@ -11,11 +11,14 @@ import {
   Download,
   Trash2,
   Eye,
-  History
+  History,
+  Copy
 } from 'lucide-react';
 import { imageService } from '../services/imageService';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
+import DownloadPdfButton from '../components/DownloadPdfButton';
 
 const ImagePage = () => {
   const { user } = useAuth();
@@ -300,11 +303,60 @@ const ImagePage = () => {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Processing Results
               </h2>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {result.processing_time ? `${result.processing_time.toFixed(2)}s` : 'N/A'}
-                </span>
-                <CheckCircle className="h-5 w-5 text-green-500" />
+              <div className="flex items-center space-x-4">
+                <DownloadPdfButton
+                  className="btn-secondary flex items-center space-x-2"
+                  filename="image-analysis.pdf"
+                  title="Image Analysis Results"
+                  getHtml={() => `
+                    <div class="container">
+                      <h1>Image Analysis Results</h1>
+                      <div class="meta">
+                        <p>Processing Time: ${result.processing_time?.toFixed(2)}s</p>
+                        <p>Words: ${result.word_count}</p>
+                        <p>Characters: ${result.character_count}</p>
+                      </div>
+                      <div class="section">
+                        <h2>Extracted Text</h2>
+                        <p>${result.extracted_text}</p>
+                      </div>
+                      ${result.summary.main_summary ? `
+                        <div class="section">
+                          <h2>Main Summary</h2>
+                          <p>${result.summary.main_summary}</p>
+                        </div>
+                      ` : ''}
+                      ${result.summary.key_points?.length ? `
+                        <div class="section">
+                          <h2>Key Points</h2>
+                          <ul>
+                            ${result.summary.key_points.map(point => `<li>${point}</li>`).join('')}
+                          </ul>
+                        </div>
+                      ` : ''}
+                      ${result.summary.important_details?.length ? `
+                        <div class="section">
+                          <h2>Important Details</h2>
+                          <ul>
+                            ${result.summary.important_details.map(detail => `<li>${detail}</li>`).join('')}
+                          </ul>
+                        </div>
+                      ` : ''}
+                      <div class="meta">
+                        Generated on ${new Date().toLocaleString()}
+                      </div>
+                    </div>
+                  `}
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>Export PDF</span>
+                </DownloadPdfButton>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {result.processing_time ? `${result.processing_time.toFixed(2)}s` : 'N/A'}
+                  </span>
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                </div>
               </div>
             </div>
 
