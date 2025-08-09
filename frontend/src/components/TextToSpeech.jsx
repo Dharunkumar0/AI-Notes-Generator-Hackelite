@@ -53,27 +53,41 @@ const TextToSpeech = ({ text }) => {
     }
   };
 
-  const togglePlayPause = () => {
+  const togglePlayPause = async () => {
     if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
+      try {
+        if (isPlaying) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+        } else {
+          await audioRef.current.play();
+          setIsPlaying(true);
+        }
+      } catch (err) {
+        console.error('Playback error:', err);
+        setError('Error playing audio. Please try again.');
+        setIsPlaying(false);
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
   useEffect(() => {
-    if (audioRef.current) {
-      // Handle audio end
-      audioRef.current.onended = () => setIsPlaying(false);
-      
-      // Handle errors
-      audioRef.current.onerror = (e) => {
-        setError('Error playing audio');
-        setIsPlaying(false);
-      };
+    if (audioUrl && audioRef.current) {
+      setIsPlaying(false);
+      setError(null);
+      audioRef.current.load();
+      try {
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error('Audio playback failed:', error);
+            setError('Click play to start audio');
+          });
+        }
+      } catch (err) {
+        console.error('Play error:', err);
+        setError('Click play to start audio');
+      }
     }
   }, [audioUrl]);
 
@@ -88,9 +102,17 @@ const TextToSpeech = ({ text }) => {
   return (
     <div className="flex flex-col space-y-2">
       <div className="flex items-center space-x-2">
-        {audioUrl && (
-          <audio ref={audioRef} src={audioUrl} />
-        )}
+        <audio
+          ref={audioRef}
+          src={audioUrl || ''}
+          style={{ display: 'none' }}
+          onEnded={() => setIsPlaying(false)}
+          onError={() => {
+            console.error('Audio failed to load');
+            setError('Click play to start audio');
+            setIsPlaying(false);
+          }}
+        />
         
         <select
           value={language}
@@ -151,7 +173,15 @@ const TextToSpeech = ({ text }) => {
       )}
 
       {error && (
-        <p className="text-red-500 text-sm">{error}</p>
+        <div className="text-red-500 text-sm">
+          {error}
+          {audioUrl && (
+            <>
+              <br />
+              <span>If the audio does not play, <a href={audioUrl} target="_blank" rel="noopener noreferrer" className="underline">click here to test the audio file directly</a>.</span>
+            </>
+          )}
+        </div>
       )}
     </div>
   );

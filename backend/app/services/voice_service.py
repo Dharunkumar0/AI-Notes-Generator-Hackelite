@@ -172,20 +172,35 @@ class VoiceService:
                 except Exception as e:
                     logger.error(f"Error cleaning up temporary file: {e}")
 
-    async def record_audio(self, duration: int = 10) -> Dict[str, Any]:
+    def get_available_microphones(self) -> List[Dict[str, Any]]:
+        """Get list of available microphones."""
+        try:
+            import pyaudio
+            mics = sr.Microphone.list_microphone_names()
+            return [{"id": idx, "name": name} for idx, name in enumerate(mics)]
+        except Exception as e:
+            logger.error(f"Error listing microphones: {e}")
+            return []
+
+    async def record_audio(self, duration: int = 10, device_index: Optional[int] = None) -> Dict[str, Any]:
         """Record audio from microphone."""
         try:
             # Check if microphone is available
             try:
                 import pyaudio
-                sr.Microphone.list_microphone_names()
+                mics = sr.Microphone.list_microphone_names()
+                if device_index is not None and (device_index < 0 or device_index >= len(mics)):
+                    return {
+                        "success": False,
+                        "error": f"Invalid microphone index. Available range: 0-{len(mics)-1}"
+                    }
             except Exception as e:
                 return {
                     "success": False,
                     "error": "Microphone not available. Please check your microphone settings."
                 }
 
-            with sr.Microphone() as source:
+            with sr.Microphone(device_index=device_index) as source:
                 logger.info("Adjusting for ambient noise...")
                 self.recognizer.adjust_for_ambient_noise(source, duration=1)
                 

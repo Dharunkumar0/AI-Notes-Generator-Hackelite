@@ -38,6 +38,30 @@ const handleError = (error) => {
 };
 
 const voiceService = {
+  // Get available microphones
+  async getAvailableMicrophones() {
+    try {
+      const response = await api.get('/api/voice/microphones');
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
+  // Start recording from selected microphone
+  async startRecording(deviceIndex = null) {
+    try {
+      const formData = new FormData();
+      if (deviceIndex !== null) {
+        formData.append('device_index', deviceIndex);
+      }
+      const response = await api.post('/api/voice/record', formData);
+      return response.data;
+    } catch (error) {
+      handleError(error);
+    }
+  },
+
   // Get supported audio formats
   async getSupportedFormats() {
     try {

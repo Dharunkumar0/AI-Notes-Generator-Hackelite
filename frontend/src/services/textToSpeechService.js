@@ -32,7 +32,10 @@ export const textToSpeechService = {
         language,
         translate
       });
-      return response.data;
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Failed to generate speech');
+      }
+      return response.data.data;
     } catch (error) {
       console.error('Text to speech error:', error);
       if (error.response?.data?.detail) {

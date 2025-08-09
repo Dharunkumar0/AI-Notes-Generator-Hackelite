@@ -17,6 +17,11 @@ from app.api.auth import get_current_user, verify_firebase_token
 from app.models.user import UserResponse
 from app.models.history import HistoryCreate
 from app.services.voice_service import voice_service
+
+from app.services.text_to_speech_service import text_to_speech_service
+
+# Add missing router definition
+router = APIRouter()
 from app.core.config import settings
 from app.core.database import get_collection
 
@@ -32,6 +37,10 @@ class VoiceTranscribeResponse(BaseModel):
     data: Optional[Dict[str, Any]] = Field(default=None, description="Transcription data if successful")
     error: Optional[str] = Field(default=None, description="Error message if unsuccessful")
 
+class MicrophoneInfo(BaseModel):
+    index: int = Field(description="Index of the microphone device")
+    name: str = Field(description="Name of the microphone device")
+
 class VoiceSummarizeRequest(BaseModel):
     transcription: str
     max_length: Optional[int] = 200
@@ -41,7 +50,26 @@ class VoiceSummarizeResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
-router = APIRouter()
+
+
+# Text-to-Speech endpoint
+class TextToSpeechRequest(BaseModel):
+    text: str
+    language: str = 'en'
+    translate: bool = False
+
+@router.post("/text-to-speech")
+async def text_to_speech(request: TextToSpeechRequest):
+    """Convert text to speech and return audio file path."""
+    result = await text_to_speech_service.text_to_speech(
+        text=request.text,
+        language=request.language,
+        translate=request.translate
+    )
+    if result["success"]:
+        return {"success": True, "data": result["data"]}
+    else:
+        return {"success": False, "error": result["error"]}
 
 @router.post("/transcribe", response_model=VoiceTranscribeResponse)
 async def transcribe_audio(
@@ -238,6 +266,59 @@ async def summarize_transcription(
             success=False,
             error=f"Summary generation failed: {str(e)}"
         )
+
+@router.get("/microphones", response_model=List[MicrophoneInfo])
+async def get_microphones(
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """Get list of available microphones"""
+    try:
+        # Verify token
+        firebase_user = await verify_firebase_token(credentials.credentials)
+        if not firebase_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials"
+            )
+            
+        microphones = voice_service.get_available_microphones()
+        return [MicrophoneInfo(index=idx, name=name) for idx, name in enumerate(microphones)]
+    except Exception as e:
+        logger.error(f"Error getting microphones: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting microphones: {str(e)}"
+        )
+
+@router.post("/record")
+async def record_audio(
+    device_index: Optional[int] = Form(None),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """Record audio from selected microphone"""
+    try:
+        # Verify token
+        firebase_user = await verify_firebase_token(credentials.credentials)
+        if not firebase_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials"
+            )
+            
+        # Record audio using voice service with optional device index
+        audio_file = await voice_service.record_audio(device_index=device_index)
+        
+        # Return the path to recorded audio
+        return JSONResponse({
+            "success": True,
+            "audioPath": audio_file
+        })
+    except Exception as e:
+        logger.error(f"Error recording audio: {str(e)}\n{traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": f"Error recording audio: {str(e)}"
+        })
 
 @router.get("/stats")
 async def get_voice_stats(

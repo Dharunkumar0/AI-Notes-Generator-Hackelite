@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { FaMicrophone, FaStop, FaPause, FaTrash, FaPlay, FaSpinner, FaUpload } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { voiceService } from '../services/voiceService';
@@ -11,6 +11,9 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [audioURL, setAudioURL] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const [availableMicrophones, setAvailableMicrophones] = useState([]);
+    const [selectedMicrophone, setSelectedMicrophone] = useState(null);
+    const [isLoadingMics, setIsLoadingMics] = useState(false);
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -19,49 +22,50 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
 
     const supportedFormats = ['wav', 'mp3', 'm4a', 'ogg', 'flac', 'webm'];
 
+    useEffect(() => {
+        fetchAvailableMicrophones();
+    }, []);
+
+    const fetchAvailableMicrophones = async () => {
+        try {
+            setIsLoadingMics(true);
+            const response = await voiceService.getAvailableMicrophones();
+            if (response && Array.isArray(response)) {
+                setAvailableMicrophones(response);
+                if (response.length > 0) {
+                    setSelectedMicrophone(response[0]);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching microphones:', error);
+            toast.error('Could not fetch available microphones');
+        } finally {
+            setIsLoadingMics(false);
+        }
+    };
+
     const startRecording = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                audio: {
-                    channelCount: 1,
-                    sampleRate: 44100,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            });
-            
-            const options = { 
-                mimeType: 'audio/webm',
-                audioBitsPerSecond: 128000
-            };
-            
-            mediaRecorderRef.current = new MediaRecorder(stream, options);
-            audioChunksRef.current = [];
+            if (!selectedMicrophone) {
+                toast.error('Please select a microphone first');
+                return;
+            }
 
-            mediaRecorderRef.current.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    audioChunksRef.current.push(event.data);
-                }
-            };
+            const response = await voiceService.startRecording(selectedMicrophone.index);
+            if (response.success && response.audioPath) {
+                setAudioURL(response.audioPath);
+                setIsRecording(true);
+                setIsPaused(false);
 
-            mediaRecorderRef.current.onstop = () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                setAudioBlob(audioBlob);
-                const url = URL.createObjectURL(audioBlob);
-                setAudioURL(url);
-            };
-
-            mediaRecorderRef.current.start(100);
-            setIsRecording(true);
-            setIsPaused(false);
-
-            timerRef.current = setInterval(() => {
-                setDuration(prev => prev + 1);
-            }, 1000);
+                timerRef.current = setInterval(() => {
+                    setDuration(prev => prev + 1);
+                }, 1000);
+            } else {
+                throw new Error(response.error || 'Failed to start recording');
+            }
         } catch (error) {
-            console.error('Error accessing microphone:', error);
-            toast.error('Could not access microphone. Please check permissions.');
+            console.error('Error starting recording:', error);
+            toast.error(error.message || 'Could not start recording. Please try again.');
         }
     };
 
@@ -180,14 +184,45 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
 
     return (
         <div className="flex flex-col items-center space-y-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+            {/* Microphone selector */}
+            <div className="w-full max-w-sm">
+                <label htmlFor="microphone-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Select Microphone
+                </label>
+                <div className="relative">
+                    <select
+                        id="microphone-select"
+                        value={selectedMicrophone?.index ?? ''}
+                        onChange={(e) => {
+                            const mic = availableMicrophones.find(m => m.index === parseInt(e.target.value));
+                            setSelectedMicrophone(mic || null);
+                        }}
+                        disabled={isLoadingMics || isRecording}
+                        className="block w-full rounded-lg border border-gray-300 bg-white dark:bg-gray-700 px-4 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="">Select a microphone...</option>
+                        {availableMicrophones.map(mic => (
+                            <option key={mic.index} value={mic.index}>
+                                {mic.name}
+                            </option>
+                        ))}
+                    </select>
+                    {isLoadingMics && (
+                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                            <FaSpinner className="w-4 h-4 animate-spin text-gray-400" />
+                        </div>
+                    )}
+                </div>
+            </div>
+            
             <div className="flex items-center space-x-4">
                 {!isRecording && !audioBlob && (
                     <>
                         <button
                             onClick={startRecording}
-                            disabled={isProcessing}
+                            disabled={isProcessing || !selectedMicrophone}
                             className="p-4 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors disabled:bg-blue-400"
-                            title="Start Recording"
+                            title={!selectedMicrophone ? "Select a microphone first" : "Start Recording"}
                         >
                             <FaMicrophone className="w-6 h-6" />
                         </button>
