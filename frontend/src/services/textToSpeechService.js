@@ -25,11 +25,12 @@ api.interceptors.request.use(
 );
 
 export const textToSpeechService = {
-  generateSpeech: async (text, language = 'en') => {
+  generateSpeech: async (text, language = 'en', translate = false) => {
     try {
       const response = await api.post('/api/voice/text-to-speech', {
         text,
-        language
+        language,
+        translate
       });
       return response.data;
     } catch (error) {

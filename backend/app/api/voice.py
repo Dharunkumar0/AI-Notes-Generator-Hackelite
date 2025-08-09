@@ -490,11 +490,13 @@ async def get_voice_stats(current_user: UserResponse = Depends(get_current_user)
 class TextToSpeechRequest(BaseModel):
     text: str
     language: Optional[str] = 'en'
+    translate: Optional[bool] = False
 
 class TextToSpeechResponse(BaseModel):
     file_path: str
     file_name: str
     duration: float
+    translated_text: Optional[str] = None
 
 @router.post("/text-to-speech", response_model=TextToSpeechResponse)
 async def convert_text_to_speech(
@@ -513,7 +515,8 @@ async def convert_text_to_speech(
         # Convert text to speech
         result = await text_to_speech_service.text_to_speech(
             text=request.text,
-            language=request.language
+            language=request.language,
+            translate=request.translate
         )
         
         if not result["success"]:
