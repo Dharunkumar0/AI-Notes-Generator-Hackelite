@@ -19,6 +19,8 @@ class NotesSummarizeRequest(BaseModel):
     max_length: Optional[int] = 500
     summarization_type: Optional[str] = 'abstractive'
     summary_mode: Optional[str] = 'narrative'
+    use_blooms_taxonomy: Optional[bool] = False
+    use_blooms_taxonomy: Optional[bool] = False
 
 class NotesSummarizeResponse(BaseModel):
     summary: str
