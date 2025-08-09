@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { FaMicrophone, FaStop, FaPause, FaTrash, FaPlay, FaSpinner } from 'react-icons/fa';
+import { FaMicrophone, FaStop, FaPause, FaTrash, FaPlay, FaSpinner, FaUpload } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { voiceService } from '../services/voiceService';
 
@@ -10,10 +10,14 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
     const [audioBlob, setAudioBlob] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [audioURL, setAudioURL] = useState(null);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const timerRef = useRef(null);
+    const fileInputRef = useRef(null);
+
+    const supportedFormats = ['wav', 'mp3', 'm4a', 'ogg', 'flac', 'webm'];
 
     const startRecording = async () => {
         try {
@@ -21,17 +25,17 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
                 audio: {
                     channelCount: 1,
                     sampleRate: 44100,
-                    sampleSize: 16,
-                    volume: 1.0,
                     echoCancellation: true,
                     noiseSuppression: true,
                     autoGainControl: true
                 }
             });
+            
             const options = { 
                 mimeType: 'audio/webm',
-                audioBitsPerSecond: 128000 // 128 kbps for better quality
+                audioBitsPerSecond: 128000
             };
+            
             mediaRecorderRef.current = new MediaRecorder(stream, options);
             audioChunksRef.current = [];
 
@@ -42,16 +46,12 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
             };
 
             mediaRecorderRef.current.onstop = () => {
-                // Create WebM blob with proper MIME type
-                const audioBlob = new Blob(audioChunksRef.current, { 
-                    type: 'audio/webm' 
-                });
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 setAudioBlob(audioBlob);
                 const url = URL.createObjectURL(audioBlob);
                 setAudioURL(url);
             };
 
-            // Start recording with smaller timeslices for more frequent updates
             mediaRecorderRef.current.start(100);
             setIsRecording(true);
             setIsPaused(false);
@@ -66,28 +66,28 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
     };
 
     const pauseRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
-            if (!isPaused) {
-                mediaRecorderRef.current.pause();
-                clearInterval(timerRef.current);
-            } else {
-                mediaRecorderRef.current.resume();
-                timerRef.current = setInterval(() => {
-                    setDuration(prev => prev + 1);
-                }, 1000);
-            }
-            setIsPaused(!isPaused);
+        if (!mediaRecorderRef.current || !isRecording) return;
+
+        if (!isPaused) {
+            mediaRecorderRef.current.pause();
+            clearInterval(timerRef.current);
+        } else {
+            mediaRecorderRef.current.resume();
+            timerRef.current = setInterval(() => {
+                setDuration(prev => prev + 1);
+            }, 1000);
         }
+        setIsPaused(!isPaused);
     };
 
     const stopRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
-            mediaRecorderRef.current.stop();
-            clearInterval(timerRef.current);
-            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-            setIsRecording(false);
-            setIsPaused(false);
-        }
+        if (!mediaRecorderRef.current || !isRecording) return;
+
+        mediaRecorderRef.current.stop();
+        clearInterval(timerRef.current);
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        setIsRecording(false);
+        setIsPaused(false);
     };
 
     const resetRecording = () => {
@@ -97,6 +97,49 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
         setAudioBlob(null);
         setAudioURL(null);
         setDuration(0);
+        setUploadProgress(0);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const handleFileUpload = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const format = file.name.split('.').pop()?.toLowerCase();
+        if (!supportedFormats.includes(format)) {
+            toast.error(`Unsupported file format. Supported formats: ${supportedFormats.join(', ')}`);
+            return;
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('File size must be less than 10MB');
+            return;
+        }
+
+        try {
+            setIsProcessing(true);
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const result = await voiceService.uploadAudio(formData, progress => {
+                setUploadProgress(Math.round(progress));
+            });
+
+            if (result?.transcription) {
+                onTranscriptionComplete(result);
+                toast.success('Audio processed successfully');
+            } else {
+                toast.error('Failed to process audio');
+            }
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            toast.error(error.message || 'Failed to process audio file');
+        } finally {
+            setIsProcessing(false);
+            setUploadProgress(0);
+        }
     };
 
     const handleSubmit = async () => {
@@ -107,18 +150,20 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
 
         setIsProcessing(true);
         try {
-            // Create a File object from the Blob with a unique filename
             const timestamp = Date.now();
-            const audioFile = new File([audioBlob], `recording_${timestamp}.webm`, { 
+            const audioFile = new File([audioBlob], `recording_${timestamp}.webm`, {
                 type: 'audio/webm',
                 lastModified: timestamp
             });
-            
-            // Use voiceService to transcribe
+
             const result = await voiceService.transcribeAudioFile(audioFile);
-            onTranscriptionComplete(result);
-            resetRecording();
-            toast.success('Audio transcribed successfully');
+            if (result?.transcription) {
+                onTranscriptionComplete(result);
+                resetRecording();
+                toast.success('Audio transcribed successfully');
+            } else {
+                toast.error('Failed to transcribe audio');
+            }
         } catch (error) {
             console.error('Error transcribing audio:', error);
             toast.error(error.message || 'Error transcribing audio');
@@ -127,7 +172,7 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
         }
     };
 
-    const formatTime = (seconds) => {
+    const formatTime = seconds => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -137,13 +182,35 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
         <div className="flex flex-col items-center space-y-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
             <div className="flex items-center space-x-4">
                 {!isRecording && !audioBlob && (
-                    <button
-                        onClick={startRecording}
-                        className="p-4 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
-                        title="Start Recording"
-                    >
-                        <FaMicrophone className="w-6 h-6" />
-                    </button>
+                    <>
+                        <button
+                            onClick={startRecording}
+                            disabled={isProcessing}
+                            className="p-4 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors disabled:bg-blue-400"
+                            title="Start Recording"
+                        >
+                            <FaMicrophone className="w-6 h-6" />
+                        </button>
+                        
+                        <div className="relative">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileUpload}
+                                accept=".wav,.mp3,.m4a,.ogg,.flac,.webm"
+                                className="hidden"
+                                disabled={isProcessing}
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isProcessing}
+                                className="p-4 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors disabled:bg-green-400"
+                                title="Upload Audio File"
+                            >
+                                <FaUpload className="w-6 h-6" />
+                            </button>
+                        </div>
+                    </>
                 )}
 
                 {isRecording && (
@@ -166,38 +233,56 @@ const VoiceRecorder = ({ onTranscriptionComplete }) => {
                 )}
 
                 {audioBlob && !isRecording && (
-                    <>
+                    <div className="flex items-center space-x-4">
                         <audio src={audioURL} controls className="w-64" />
                         <button
+                            onClick={handleSubmit}
+                            disabled={isProcessing}
+                            className="p-4 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors disabled:bg-green-400"
+                            title="Transcribe Audio"
+                        >
+                            {isProcessing ? (
+                                <FaSpinner className="w-6 h-6 animate-spin" />
+                            ) : (
+                                <FaPlay className="w-6 h-6" />
+                            )}
+                        </button>
+                        <button
                             onClick={resetRecording}
-                            className="p-4 bg-gray-500 text-white rounded-full hover:bg-gray-600 transition-colors"
+                            disabled={isProcessing}
+                            className="p-4 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors disabled:bg-red-400"
                             title="Reset Recording"
                         >
                             <FaTrash className="w-6 h-6" />
                         </button>
-                    </>
+                    </div>
                 )}
             </div>
 
-            <div className="text-center text-gray-600 dark:text-gray-300">
-                {formatTime(duration)}
-            </div>
+            {isRecording && (
+                <div className="text-center text-gray-600 dark:text-gray-300">
+                    {isPaused ? 'Paused' : 'Recording'} ({formatTime(duration)})
+                </div>
+            )}
 
-            {audioBlob && !isRecording && (
-                <button
-                    onClick={handleSubmit}
-                    disabled={isProcessing}
-                    className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-400 flex items-center space-x-2"
-                >
-                    {isProcessing ? (
-                        <>
-                            <FaSpinner className="w-5 h-5 animate-spin" />
-                            <span>Processing...</span>
-                        </>
-                    ) : (
-                        <span>Transcribe Audio</span>
-                    )}
-                </button>
+            {isProcessing && uploadProgress > 0 && uploadProgress < 100 && (
+                <div className="w-full max-w-md">
+                    <div className="bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div 
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                        />
+                    </div>
+                    <div className="text-center text-sm text-gray-600 dark:text-gray-300 mt-1">
+                        Uploading: {uploadProgress}%
+                    </div>
+                </div>
+            )}
+
+            {isProcessing && (
+                <div className="text-center text-gray-600 dark:text-gray-300">
+                    Processing audio...
+                </div>
             )}
         </div>
     );

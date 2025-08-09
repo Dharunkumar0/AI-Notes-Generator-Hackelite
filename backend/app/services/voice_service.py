@@ -3,20 +3,99 @@ import tempfile
 import os
 import logging
 import sys
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import wave
 import io
 import traceback
-from pydub import AudioSegment
-from werkzeug.utils import secure_filename
-from datetime import datetime
 import json
 import asyncio
 import httpx
+from datetime import datetime
+from pydub import AudioSegment
+from pydub.utils import make_chunks
+from werkzeug.utils import secure_filename
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+class VoiceService:
+    def __init__(self):
+        self.recognizer = sr.Recognizer()
+        self.supported_formats = ["wav", "mp3", "m4a", "ogg", "flac"]
+        self.max_file_size = 10 * 1024 * 1024  # 10MB
+        
+    async def get_audio_info(self, file_path: str) -> Dict[str, Any]:
+        """Get information about an audio file."""
+        try:
+            audio = AudioSegment.from_file(file_path)
+            return {
+                "duration": len(audio) / 1000.0,  # Convert to seconds
+                "channels": audio.channels,
+                "sample_width": audio.sample_width,
+                "frame_rate": audio.frame_rate,
+                "frame_count": int(len(audio)),
+                "format": os.path.splitext(file_path)[1][1:]
+            }
+        except Exception as e:
+            logger.error(f"Error getting audio info: {str(e)}")
+            raise
+            
+    async def transcribe_audio_file(self, file_path: str, file_format: str) -> Dict[str, Any]:
+        """Transcribe an audio file to text."""
+        try:
+            # Convert to WAV if necessary
+            if file_format != "wav":
+                audio = AudioSegment.from_file(file_path, format=file_format)
+                wav_path = f"{file_path}.wav"
+                audio.export(wav_path, format="wav")
+                file_path = wav_path
+
+            with sr.AudioFile(file_path) as source:
+                # Adjust for ambient noise if audio duration > 0.5 seconds
+                if source.DURATION > 0.5:
+                    self.recognizer.adjust_for_ambient_noise(source, duration=min(0.5, source.DURATION))
+                
+                audio = self.recognizer.record(source)
+                
+                # Try Google Speech Recognition
+                try:
+                    text = self.recognizer.recognize_google(audio, show_all=True)
+                    if text and isinstance(text, dict) and "alternative" in text:
+                        result = text["alternative"][0]
+                        return {
+                            "text": result["transcript"],
+                            "confidence": result.get("confidence", 0.0),
+                            "duration": source.DURATION
+                        }
+                    else:
+                        return {
+                            "text": "Could not understand audio",
+                            "confidence": 0.0,
+                            "duration": source.DURATION
+                        }
+                except sr.UnknownValueError:
+                    return {
+                        "text": "Could not understand audio",
+                        "confidence": 0.0,
+                        "duration": source.DURATION
+                    }
+                except sr.RequestError as e:
+                    logger.error(f"Could not request results from Speech Recognition service: {str(e)}")
+                    raise
+
+        except Exception as e:
+            logger.error(f"Error transcribing audio: {str(e)}")
+            raise
+        finally:
+            # Clean up temporary WAV file
+            if file_format != "wav" and os.path.exists(f"{file_path}.wav"):
+                try:
+                    os.unlink(f"{file_path}.wav")
+                except Exception as e:
+                    logger.error(f"Error cleaning up temporary WAV file: {str(e)}")
+
+voice_service = VoiceService()
 
 class VoiceService:
     def __init__(self):

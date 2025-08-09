@@ -1,53 +1,84 @@
-from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File
-from pydantic import BaseModel
-from typing import Optional, List, Dict, An        
-import time
-import os
-import json
-from datetime import datetime
- 
-from app.api.auth import get_current_user
-from app.models.user import UserResponse
-from app.models.history import HistoryCreate
-from app.models.voice import EmotionAnalysisResponse
-from app.core.database import get_collection
-from app.services.voice_service import voice_service
-from app.services.emotion_analysis_service import analyze_voice_emotion
-from app.core.config import settings
+from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File, Form
+from pydantic import BaseModel, constr, Field
+from typing import Optional, List, Dict, Any
 import logging
 import time
 import os
 import json
 from datetime import datetime
+import base64
 
 from app.api.auth import get_current_user
 from app.models.user import UserResponse
 from app.models.history import HistoryCreate
-from app.models.voice import EmotionAnalysisResponse
-from app.core.database import get_collection
 from app.services.voice_service import voice_service
-from app.services.emotion_analysis_service import analyze_voice_emotion
+from app.services.ai_service import ai_service
 from app.core.config import settings
+from app.core.database import get_collection
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-router = APIRouter()
+# Models
+class FileInfo(BaseModel):
+    filename: str
+    duration: float
+    format: str
 
-class TimestampModel(BaseModel):
-    word: str
-    start_time: float
-    end_time: float
+class TranscriptionResult(BaseModel):
+    text: str
+    confidence: float = Field(default=0.0)
+    duration: float = Field(default=0.0)
+    word_count: int
+
+class SummaryResult(BaseModel):
+    summary: str = Field(default="")
+    key_points: List[str] = Field(default_factory=list)
+    topics: List[str] = Field(default_factory=list)
+
+class VoiceResponse(BaseModel):
+    file_info: FileInfo
+    transcription: TranscriptionResult
+    summary: SummaryResult
+    processing_time: float
 
 class VoiceTranscribeResponse(BaseModel):
-    transcription: str
+    success: bool = Field(description="Whether the transcription was successful")
+    data: Optional[Dict[str, Any]] = Field(default=None, description="Transcription data if successful")
+    error: Optional[str] = Field(default=None, description="Error message if unsuccessful")
+
+class RecordRequest(BaseModel):
+    audio_data: str  # Base64 encoded audio data
+    file_format: str = Field(default="wav")
+
+router = APIRouter()
+
+class RecordRequest(BaseModel):
+    audio_data: str  # Base64 encoded audio data
+    file_format: str = "wav"
+
+class FileInfo(BaseModel):
+    filename: str
+    duration: float
+    format: str
+
+class TranscriptionResult(BaseModel):
+    text: str
     confidence: float
+    duration: float
     word_count: int
+
+class SummaryResult(BaseModel):
+    summary: str
+    key_points: List[str]
+    topics: List[str]
+
+class VoiceResponse(BaseModel):
+    file_info: Optional[FileInfo] = None
+    transcription: Optional[TranscriptionResult] = None
+    summary: Optional[SummaryResult] = None
     processing_time: float
-    duration: Optional[float] = None
-    timestamps: Optional[List[TimestampModel]] = None
-    file_path: Optional[str] = None
 
 class VoiceSummarizeResponse(BaseModel):
     summary: str
@@ -76,12 +107,197 @@ class VoiceSummarizeRequest(BaseModel):
     transcription: str
     max_length: Optional[int] = 200
 
-@router.post("/transcribe", response_model=VoiceTranscribeResponse)
-async def transcribe_audio_file(
+@router.get("/formats")
+async def get_supported_formats():
+    """Get list of supported audio formats."""
+    return {
+        "status": "success",
+        "data": {
+            "supported_formats": ["wav", "mp3", "m4a", "ogg", "flac"],
+            "max_file_size": 10 * 1024 * 1024,  # 10MB in bytes
+            "max_duration": 600  # 10 minutes in seconds
+        }
+    }
+
+@router.post("/upload", response_model=VoiceResponse)
+async def upload_audio(
     file: UploadFile = File(...),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Transcribe uploaded audio file to text."""
+    """Process uploaded audio file."""
+    start_time = time.time()
+    temp_file_path = None
+
+    try:
+        # Validate file format
+        file_ext = file.filename.split('.')[-1].lower()
+        if file_ext not in ["wav", "mp3", "m4a", "ogg", "flac"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported file format: {file_ext}"
+            )
+
+        # Create temp directory if it doesn't exist
+        os.makedirs("uploads/temp", exist_ok=True)
+        
+        # Save uploaded file
+        temp_file_path = f"uploads/temp/upload_{int(time.time() * 1000)}_{file.filename}"
+        try:
+            with open(temp_file_path, "wb") as temp_file:
+                content = await file.read()
+                temp_file.write(content)
+                file_size = len(content)
+                
+                if file_size > 10 * 1024 * 1024:  # 10MB
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="File size exceeds 10MB limit"
+                    )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to save file: {str(e)}"
+            )
+
+        # Process the audio file
+        try:
+            # Get file info
+            file_info = await voice_service.get_audio_info(temp_file_path)
+            
+            # Transcribe audio
+            transcription = await voice_service.transcribe_audio_file(temp_file_path, file_ext)
+            
+            # Generate summary if transcription is successful
+            if transcription and transcription.get("text"):
+                summary = await ai_service.summarize_text(
+                    transcription["text"],
+                    max_length=200,
+                    extract_key_points=True,
+                    extract_topics=True
+                )
+            else:
+                summary = None
+
+            return VoiceResponse(
+                file_info=FileInfo(
+                    filename=file.filename,
+                    duration=file_info["duration"],
+                    format=file_ext
+                ),
+                transcription=TranscriptionResult(
+                    text=transcription["text"],
+                    confidence=transcription.get("confidence", 0.0),
+                    duration=transcription.get("duration", 0.0),
+                    word_count=len(transcription["text"].split())
+                ),
+                summary=SummaryResult(
+                    summary=summary["summary"] if summary else "",
+                    key_points=summary.get("key_points", []) if summary else [],
+                    topics=summary.get("topics", []) if summary else []
+                ),
+                processing_time=time.time() - start_time
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing audio: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to process audio: {str(e)}"
+            )
+
+    finally:
+        # Clean up temporary file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                logger.error(f"Failed to delete temporary file: {str(e)}")
+
+@router.post("/record", response_model=VoiceResponse)
+async def process_recording(
+    data: RecordRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Process recorded audio data."""
+    start_time = time.time()
+    temp_file_path = None
+
+    try:
+        # Create temp directory if it doesn't exist
+        os.makedirs("uploads/temp", exist_ok=True)
+        
+        # Decode base64 audio data and save to temp file
+        try:
+            audio_data = base64.b64decode(data.audio_data.split(',')[1] if ',' in data.audio_data else data.audio_data)
+            temp_file_path = f"uploads/temp/record_{int(time.time() * 1000)}.{data.file_format}"
+            
+            with open(temp_file_path, "wb") as temp_file:
+                temp_file.write(audio_data)
+                
+                if len(audio_data) > 10 * 1024 * 1024:  # 10MB
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Recording size exceeds 10MB limit"
+                    )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to save recording: {str(e)}"
+            )
+
+        # Process the audio file
+        try:
+            # Get file info
+            file_info = await voice_service.get_audio_info(temp_file_path)
+            
+            # Transcribe audio
+            transcription = await voice_service.transcribe_audio_file(temp_file_path, data.file_format)
+            
+            # Generate summary if transcription is successful
+            if transcription and transcription.get("text"):
+                summary = await ai_service.summarize_text(
+                    transcription["text"],
+                    max_length=200,
+                    extract_key_points=True,
+                    extract_topics=True
+                )
+            else:
+                summary = None
+
+            return VoiceResponse(
+                file_info=FileInfo(
+                    filename=f"recording_{int(time.time())}.{data.file_format}",
+                    duration=file_info["duration"],
+                    format=data.file_format
+                ),
+                transcription=TranscriptionResult(
+                    text=transcription["text"],
+                    confidence=transcription.get("confidence", 0.0),
+                    duration=transcription.get("duration", 0.0),
+                    word_count=len(transcription["text"].split())
+                ),
+                summary=SummaryResult(
+                    summary=summary["summary"] if summary else "",
+                    key_points=summary.get("key_points", []) if summary else [],
+                    topics=summary.get("topics", []) if summary else []
+                ),
+                processing_time=time.time() - start_time
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing recording: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to process recording: {str(e)}"
+            )
+
+    finally:
+        # Clean up temporary file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                logger.error(f"Failed to delete temporary file: {str(e)}")
     temp_file_path = None
     try:
         start_time = time.time()
