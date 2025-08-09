@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FileText, Copy, Download, Sparkles, Target, Clock } from 'lucide-react';
 import { notesService } from '../services/notesService';
 import toast from 'react-hot-toast';
+import DownloadPdfButton from '../components/DownloadPdfButton';
 
 const Notes = () => {
   const [text, setText] = useState('');
@@ -238,6 +239,32 @@ const Notes = () => {
                       >
                         <Download className="h-4 w-4" />
                       </button>
+                      <DownloadPdfButton
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        filename="notes-summary.pdf"
+                        title="Notes Summary"
+                        getHtml={() => `
+                          <div class="container">
+                            <h1>Notes Summary</h1>
+                            <div class="section">
+                              <h2>Summary</h2>
+                              <p>${result.summary}</p>
+                            </div>
+                            ${result.key_points?.length ? `
+                              <div class="section">
+                                <h2>Key Points</h2>
+                                <ul>
+                                  ${result.key_points.map(point => `<li>${point}</li>`).join('')}
+                                </ul>
+                              </div>
+                            ` : ''}
+                            <div class="meta">
+                              Generated on ${new Date().toLocaleString()}
+                              Word count: ${result.word_count}
+                            </div>
+                          </div>
+                        `}
+                      />
                     </div>
                   </div>
                 </div>

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { researchService } from '../services/researchService';
 import toast from 'react-hot-toast';
+import DownloadPdfButton from '../components/DownloadPdfButton';
 
 const Research = () => {
   const [topic, setTopic] = useState('');
@@ -191,6 +192,45 @@ const Research = () => {
                       <p className="text-gray-700 dark:text-gray-300">
                         {paper.summary.summary}
                       </p>
+                    </div>
+                    <div className="mt-2 flex justify-end space-x-2">
+                      <button
+                        onClick={() => copyToClipboard(paper.summary.summary)}
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        title="Copy summary"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      <DownloadPdfButton
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        filename={`research-${paper.title.slice(0, 30)}.pdf`}
+                        title={paper.title}
+                        getHtml={() => `
+                          <div class="container">
+                            <h1>${paper.title}</h1>
+                            <div class="meta">
+                              <p>Authors: ${paper.authors.join(', ')}</p>
+                              <p>Year: ${paper.year}</p>
+                              <p>Citations: ${paper.citations}</p>
+                            </div>
+                            <div class="section">
+                              <h2>Summary</h2>
+                              <p>${paper.summary.summary}</p>
+                            </div>
+                            ${paper.summary.key_findings ? `
+                              <div class="section">
+                                <h2>Key Findings</h2>
+                                <ul>
+                                  ${paper.summary.key_findings.map(finding => `<li>${finding}</li>`).join('')}
+                                </ul>
+                              </div>
+                            ` : ''}
+                            <div class="meta">
+                              Generated on ${new Date().toLocaleString()}
+                            </div>
+                          </div>
+                        `}
+                      />
                     </div>
                   </div>
 
