@@ -11,6 +11,7 @@ const Notes = () => {
   const [result, setResult] = useState(null);
   const [summarizationType, setSummarizationType] = useState('abstractive');
   const [summaryMode, setSummaryMode] = useState('narrative');
+  const [useBlooms, setUseBlooms] = useState(false);
 
   const handleSummarize = async () => {
     if (!text.trim()) {
@@ -25,7 +26,7 @@ const Notes = () => {
 
     try {
       setLoading(true);
-      const response = await notesService.summarize(text, maxLength, summarizationType, summaryMode);
+      const response = await notesService.summarize(text, maxLength, summarizationType, summaryMode, useBlooms);
       setResult(response);
       toast.success('Text summarized successfully!');
     } catch (error) {
@@ -146,6 +147,24 @@ const Notes = () => {
                     <option value="technical">Technical/Expert (Advanced Terms)</option>
                     <option value="bullet">Bullet Points (Concise List)</option>
                   </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={useBlooms}
+                      onChange={(e) => setUseBlooms(e.target.checked)}
+                      className="form-checkbox h-4 w-4 text-primary-600"
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Use Bloom's Taxonomy for deeper learning analysis
+                    </span>
+                  </label>
+                  {useBlooms && (
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      This will analyze the content across different cognitive levels (Remember, Understand, Apply, Analyze, Evaluate, Create)
+                    </p>
+                  )}
                 </div>
               </div>
 

@@ -9,6 +9,8 @@ const Quiz = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
   const [quiz, setQuiz] = useState(null);
+  const [useBlooms, setUseBlooms] = useState(false);
+  const [taxonomyLevels, setTaxonomyLevels] = useState(['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create']);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showExplanation, setShowExplanation] = useState(false);
@@ -21,10 +23,15 @@ const Quiz = () => {
       return;
     }
 
+    if (useBlooms && taxonomyLevels.length === 0) {
+      setError('Please select at least one cognitive level');
+      return;
+    }
+
     try {
       setIsGenerating(true);
       setError('');
-      const result = await quizService.generateQuiz(text, numQuestions);
+      const result = await quizService.generateQuiz(text, numQuestions, useBlooms, taxonomyLevels);
       setQuiz(result);
       setCurrentQuestion(0);
       setSelectedAnswer(null);
@@ -97,18 +104,61 @@ const Quiz = () => {
                   onChange={(e) => setText(e.target.value)}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Number of Questions
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={numQuestions}
-                  onChange={(e) => setNumQuestions(parseInt(e.target.value))}
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 dark:bg-gray-800"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Number of Questions
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={numQuestions}
+                    onChange={(e) => setNumQuestions(parseInt(e.target.value))}
+                    className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 dark:bg-gray-800"
+                  />
+                </div>
+                <div>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={useBlooms}
+                      onChange={(e) => setUseBlooms(e.target.checked)}
+                      className="form-checkbox h-4 w-4 text-primary-600"
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Use Bloom's Taxonomy
+                    </span>
+                  </label>
+                  {useBlooms && (
+                    <div className="mt-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Select Cognitive Levels
+                      </label>
+                      <div className="space-y-2 mt-1">
+                        {['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create'].map((level) => (
+                          <label key={level} className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={taxonomyLevels.includes(level)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setTaxonomyLevels([...taxonomyLevels, level]);
+                                } else {
+                                  setTaxonomyLevels(taxonomyLevels.filter(l => l !== level));
+                                }
+                              }}
+                              className="form-checkbox h-4 w-4 text-primary-600"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">
+                              {level}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               {error && (
                 <div className="text-red-500 text-sm">

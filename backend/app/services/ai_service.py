@@ -48,7 +48,8 @@ class AIService:
         text: str, 
         max_length: int = 500,
         summarization_type: str = 'abstractive',
-        summary_mode: str = 'narrative'
+        summary_mode: str = 'narrative',
+        use_blooms_taxonomy: bool = False
     ) -> Dict[str, Any]:
         """
         Summarize text using AI with specified summarization type and style.
@@ -74,14 +75,31 @@ class AIService:
                 'abstractive': "Generate a new summary that captures the meaning of the text in your own words. Rephrase and restructure the content while maintaining accuracy."
             }.get(summarization_type, "Summarize the text appropriately.")
 
-            # Add format-specific instructions
-            format_instructions = """
-            Present the summary in the following JSON format:
+            # Add Bloom's Taxonomy instructions if requested
+            blooms_instructions = """ 
+            Additionally, analyze the content using Bloom's Taxonomy and provide learning objectives at each level:
             {
+                "blooms_taxonomy": {
+                    "remember": ["Learning objectives focusing on recall of facts, terms, basic concepts"],
+                    "understand": ["Learning objectives focusing on comprehending meaning"],
+                    "apply": ["Learning objectives focusing on using information in new situations"],
+                    "analyze": ["Learning objectives focusing on drawing connections"],
+                    "evaluate": ["Learning objectives focusing on justifying positions"],
+                    "create": ["Learning objectives focusing on creating new or original work"]
+                }
+            }
+            """ if use_blooms_taxonomy else ""
+
+            # Add format-specific instructions
+            format_instructions = f"""
+            Present the summary in the following JSON format:
+            {{
                 "summary": "the summarized text",
                 "key_points": ["point 1", "point 2", "point 3"],
                 "word_count": number_of_words_in_summary
-            }
+                {"," if use_blooms_taxonomy else ""}
+                {"\"blooms_taxonomy\": {...}" if use_blooms_taxonomy else ""}
+            }}
             """
 
             prompt = f"""
@@ -244,7 +262,7 @@ class AIService:
                 "error": str(e)
             }
 
-    async def generate_quiz(self, text: str, num_questions: int = 5) -> Dict[str, Any]:
+    async def generate_quiz(self, text: str, num_questions: int = 5, use_blooms_taxonomy: bool = False, taxonomy_levels: List[str] = None) -> Dict[str, Any]:
         """Generate quiz questions from text using Ollama."""
         try:
             if not text or not text.strip():
@@ -256,17 +274,36 @@ class AIService:
                 text = text[:max_chunk_size]  # Take first chunk for quiz generation
                 logger.warning(f"Text truncated to {max_chunk_size} characters for quiz generation")
 
+            taxonomy_instruction = ""
+            if use_blooms_taxonomy:
+                taxonomy_levels = taxonomy_levels or ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create']
+                taxonomy_instruction = f"""
+                Use Bloom's Taxonomy to create questions at different cognitive levels:
+                - Remember: Test recall of specific facts and basic concepts
+                - Understand: Test comprehension and ability to explain ideas
+                - Apply: Test ability to use information in new situations
+                - Analyze: Test ability to draw connections and find patterns
+                - Evaluate: Test ability to justify a position or decision
+                - Create: Test ability to create new or original work
+
+                Distribute questions across these cognitive levels: {', '.join(taxonomy_levels)}
+                Each question should clearly target one of these cognitive levels.
+                """
+
             prompt = f"""
             You are a quiz generator. Based on the following text, generate {num_questions} multiple choice questions.
 
             Text to analyze:
             {text}
 
+            {taxonomy_instruction}
+
             For each question:
             1. Generate a clear, specific question
             2. Create 4 distinct answer options labeled A, B, C, D
             3. Mark one option as correct
             4. Provide a brief explanation for why the correct answer is right
+            5. {"Include the targeted cognitive level (e.g., 'Cognitive Level: Remember')" if use_blooms_taxonomy else ""}
 
             Format your response as a valid JSON object with this exact structure:
             {{

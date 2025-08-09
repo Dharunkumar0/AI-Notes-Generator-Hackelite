@@ -12,6 +12,7 @@ scholarly==1.7.11
 SpeechRecognition==3.10.0
 email-validator==2.1.0.post1
 PyAudio==0.2.14
+deep-translator==1.11.4
 PyPDF2==3.0.1
 pdfplumber==0.10.3
 python-dotenv==1.0.0

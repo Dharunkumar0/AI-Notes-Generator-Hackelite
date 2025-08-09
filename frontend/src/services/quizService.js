@@ -26,11 +26,13 @@ api.interceptors.request.use(
 
 export const quizService = {
   // Generate quiz from text
-  generateQuiz: async (text, numQuestions = 5) => {
+  generateQuiz: async (text, numQuestions = 5, useBlooms = false, taxonomyLevels = []) => {
     try {
       const response = await api.post('/api/quiz/generate', {
         text,
-        num_questions: numQuestions
+        num_questions: numQuestions,
+        use_blooms_taxonomy: useBlooms,
+        taxonomy_levels: useBlooms ? taxonomyLevels : undefined
       });
       return response.data;
     } catch (error) {

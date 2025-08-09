@@ -17,6 +17,10 @@ router = APIRouter()
 class QuizGenerateRequest(BaseModel):
     text: str
     num_questions: Optional[int] = 5
+    use_blooms_taxonomy: Optional[bool] = False
+    taxonomy_levels: Optional[List[str]] = ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create']
+    use_blooms_taxonomy: Optional[bool] = False
+    taxonomy_levels: Optional[List[str]] = ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create']
 
 class QuizQuestion(BaseModel):
     question: str
