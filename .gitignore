@@ -10,3 +10,5 @@ __pycache__
 venv
 backend.zip
 frontend (2).zip
+__pycache__/
+*.pyc
