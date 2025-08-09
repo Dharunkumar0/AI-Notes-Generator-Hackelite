@@ -43,8 +43,9 @@ app.include_router(image.router, prefix="/api/image", tags=["Image Processing"])
 app.include_router(export.router, prefix="/api/export", tags=["Export"])
 app.include_router(research.router, prefix="/api/research", tags=["Research"])
 
-# Serve static files (for uploaded images)
+# Serve static files (for uploaded images and audio)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/audio", StaticFiles(directory="uploads/audio/tts"), name="audio")
 
 
 # Health check endpoint
