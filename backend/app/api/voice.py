@@ -58,18 +58,51 @@ class TextToSpeechRequest(BaseModel):
     language: str = 'en'
     translate: bool = False
 
-@router.post("/text-to-speech")
-async def text_to_speech(request: TextToSpeechRequest):
+class TextToSpeechResponse(BaseModel):
+    success: bool
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+@router.post("/text-to-speech", response_model=TextToSpeechResponse)
+async def text_to_speech(
+    request: TextToSpeechRequest,
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
     """Convert text to speech and return audio file path."""
-    result = await text_to_speech_service.text_to_speech(
-        text=request.text,
-        language=request.language,
-        translate=request.translate
-    )
-    if result["success"]:
-        return {"success": True, "data": result["data"]}
-    else:
-        return {"success": False, "error": result["error"]}
+    try:
+        # Verify token
+        firebase_user = await verify_firebase_token(credentials.credentials)
+        if not firebase_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials"
+            )
+
+        # Validate input
+        if not request.text.strip():
+            return TextToSpeechResponse(
+                success=False,
+                error="Text cannot be empty"
+            )
+
+        result = await text_to_speech_service.text_to_speech(
+            text=request.text,
+            language=request.language,
+            translate=request.translate
+        )
+
+        return TextToSpeechResponse(
+            success=result["success"],
+            data=result.get("data"),
+            error=result.get("error")
+        )
+
+    except Exception as e:
+        logger.error(f"Error in text-to-speech conversion: {str(e)}")
+        return TextToSpeechResponse(
+            success=False,
+            error=f"Failed to convert text to speech: {str(e)}"
+        )
 
 @router.post("/transcribe", response_model=VoiceTranscribeResponse)
 async def transcribe_audio(

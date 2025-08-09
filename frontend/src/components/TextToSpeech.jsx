@@ -13,7 +13,24 @@ const TextToSpeech = ({ text }) => {
   
   const languages = [
     { code: 'en', name: 'English' },
-    { code: 'ta', name: 'Tamil' }
+    { code: 'ta', name: 'Tamil' },
+    { code: 'hi', name: 'Hindi' },
+    { code: 'te', name: 'Telugu' },
+    { code: 'ml', name: 'Malayalam' },
+    { code: 'kn', name: 'Kannada' },
+    { code: 'be', name: 'Bengali' },
+    { code: 'mr', name: 'Marathi' },
+    { code: 'sa', name: 'Sanskrit' },
+    { code: 'ur', name: 'Urdu' },
+    { code: 'sd', name: 'Sindhi' },
+    { code: 'pa', name: 'Punjabi' },
+    { code: 'ar', name: 'Arabic' },
+    { code: 'zh-cn', name: 'Chinese (Simplified)' },
+    { code: 'zh-tw', name: 'Chinese (Traditional)' },
+    { code: 'el', name: 'Greek' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'ko', name: 'Korean' },
+    { code: 'ru', name: 'Russian' }
   ];
 
   const generateSpeech = async () => {

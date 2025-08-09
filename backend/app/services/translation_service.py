@@ -7,7 +7,24 @@ class TranslationService:
     def __init__(self):
         self.supported_languages = {
             'en': 'English',
-            'ta': 'Tamil'
+            'ta': 'Tamil',
+            'hi': 'Hindi',
+            'te': 'Telugu',
+            'ml': 'Malayalam',
+            'kn': 'Kannada',
+            'be': 'Bengali',
+            'mr': 'Marathi',
+            'sa': 'Sanskrit',
+            'ur': 'Urdu',
+            'sd': 'Sindhi',
+            'pa': 'Punjabi',
+            'ar': 'Arabic',
+            'zh-cn': 'Chinese (Simplified)',
+            'zh-tw': 'Chinese (Traditional)',
+            'el': 'Greek',
+            'ja': 'Japanese',
+            'ko': 'Korean',
+            'ru': 'Russian'
         }
 
     async def translate_text(self, text: str, source_lang: str = 'en', target_lang: str = 'ta') -> str:

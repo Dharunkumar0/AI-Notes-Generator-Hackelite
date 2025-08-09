@@ -16,7 +16,24 @@ class TextToSpeechService:
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         self.supported_languages = {
             'en': 'English',
-            'ta': 'Tamil'
+            'ta': 'Tamil',
+            'hi': 'Hindi',
+            'te': 'Telugu',
+            'ml': 'Malayalam',
+            'kn': 'Kannada',
+            'be': 'Bengali',
+            'mr': 'Marathi',
+            'sa': 'Sanskrit',
+            'ur': 'Urdu',
+            'sd': 'Sindhi',
+            'pa': 'Punjabi',
+            'ar': 'Arabic',
+            'zh-cn': 'Chinese (Simplified)',
+            'zh-tw': 'Chinese (Traditional)',
+            'el': 'Greek',
+            'ja': 'Japanese',
+            'ko': 'Korean',
+            'ru': 'Russian'
         }
         
     async def text_to_speech(self, text: str, language: str = 'en', translate: bool = False) -> Dict[str, Any]:
